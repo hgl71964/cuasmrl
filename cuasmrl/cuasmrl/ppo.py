@@ -11,7 +11,6 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
 from cuasmrl.utils.logger import get_logger
-from cuasmrl.verify import test_via_cubin
 
 logger = get_logger(__name__)
 
@@ -56,7 +55,7 @@ class PPO(nn.Module):
 def env_loop(envs, config):
     device = torch.device(
         "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
-    logger.info(f"device: {device}")
+    logger.info(f"[ENV_LOOP]device: {device}")
 
     # ===== log =====
     log = bool(config.l)
@@ -85,7 +84,7 @@ def env_loop(envs, config):
     latest_ckpt = None
     max_epoch = -1
     for file in ckpt_files:
-        epoch_num = file.split('_')[-1]
+        epoch_num = file.strip('.pt').split('_')[-1]
         print('xxxx', file, epoch_num)
         epoch_num = int(epoch_num)
         if epoch_num > max_epoch:
@@ -93,15 +92,15 @@ def env_loop(envs, config):
             latest_ckpt = file
 
     if latest_ckpt is None:
-        epoch = 0
+        iteration = 0
     if latest_ckpt is not None:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
         agent.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        epoch = ckpt['epoch']
+        iteration = ckpt['iteration'] + 1
 
-    logger.info(f'start training from epoch {epoch}')
+    logger.info(f'[ENV_LOOP]start training from iteration {iteration}')
 
     # ===== constants =====
     anneal_lr = bool(config.anneal_lr)
@@ -174,10 +173,13 @@ def env_loop(envs, config):
                         logger.info(
                             f"global_step={global_step}, episodic_return={info['episode']['r']}"
                         )
-                        writer.add_scalar("charts/episodic_return",
-                                          info["episode"]["r"], global_step)
-                        writer.add_scalar("charts/episodic_length",
-                                          info["episode"]["l"], global_step)
+                        if log:
+                            writer.add_scalar("charts/episodic_return",
+                                              info["episode"]["r"],
+                                              global_step)
+                            writer.add_scalar("charts/episodic_length",
+                                              info["episode"]["l"],
+                                              global_step)
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -271,31 +273,38 @@ def env_loop(envs, config):
                                                              y_pred) / var_y
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
-        writer.add_scalar("charts/learning_rate",
-                          optimizer.param_groups[0]["lr"], global_step)
-        writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
-        writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
-        writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
-        writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(),
-                          global_step)
-        writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
-        writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
-        writer.add_scalar("losses/explained_variance", explained_var,
-                          global_step)
-        print("SPS:", int(global_step / (time.time() - start_time)))
-        writer.add_scalar("charts/SPS",
-                          int(global_step / (time.time() - start_time)),
-                          global_step)
+        if log:
+            writer.add_scalar("charts/learning_rate",
+                              optimizer.param_groups[0]["lr"], global_step)
+            writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
+            writer.add_scalar("losses/policy_loss", pg_loss.item(),
+                              global_step)
+            writer.add_scalar("losses/entropy", entropy_loss.item(),
+                              global_step)
+            writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(),
+                              global_step)
+            writer.add_scalar("losses/approx_kl", approx_kl.item(),
+                              global_step)
+            writer.add_scalar("losses/clipfrac", np.mean(clipfracs),
+                              global_step)
+            writer.add_scalar("losses/explained_variance", explained_var,
+                              global_step)
+            print("SPS:", int(global_step / (time.time() - start_time)))
+            writer.add_scalar("charts/SPS",
+                              int(global_step / (time.time() - start_time)),
+                              global_step)
 
         if log:
-            torch.save(agent.state_dict(),
-                       f"{save_path}/agent-{global_step}.pt")
+            torch.save(
+                {
+                    'iteration': iteration,
+                    'model_state_dict': agent.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
 
     # ===== STOP =====
     envs.close()
     if log:
-        # save
-        torch.save(agent.state_dict(), f"{save_path}/agent-final.pt")
         writer.close()
 
 

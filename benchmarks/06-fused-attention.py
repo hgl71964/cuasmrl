@@ -77,8 +77,8 @@ def parse_args() -> Config:
     parser.add_argument("--wl", type=int, default=16384)
     parser.add_argument("--D_HEAD", type=int, default=64)
 
-    parser.add_argument("--t", type=int, default=1)
-    parser.add_argument("--l", type=int, default=1)
+    parser.add_argument("-t", "--train", type=int, default=1)
+    parser.add_argument("-l", "--log", type=int, default=1)
     parser.add_argument("--verbose", type=int, default=0)
 
     parser.add_argument("--env_id", type=str, default='cuasmenv-v0')
