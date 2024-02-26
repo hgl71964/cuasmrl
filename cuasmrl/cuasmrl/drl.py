@@ -42,9 +42,6 @@ def run_drl(
     # drl config
     config,
 ):
-
-    logger.info('run drl')
-
     # get initial cubin and asm (the initial have to file IO)
     with tempfile.NamedTemporaryFile(mode='wb', delete=True) as temp_file:
         cubin = bin.asm['cubin']

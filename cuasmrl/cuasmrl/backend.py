@@ -39,15 +39,15 @@ def make_env(
 
         # utility wrapper
         # env = gym.wrappers.NormalizeReward(env)  # this influences learning significantly
-        if config.h is not None:
-            env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
-        if bool(config.normalize_reward):
-            env = gym.wrappers.NormalizeReward(env)
+        # if config.h is not None:
+        #     env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
+        # if bool(config.normalize_reward):
+        #     env = gym.wrappers.NormalizeReward(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
 
         # seed env
-        env.observation_space.seed(seed)
-        env.action_space.seed(seed)
+        env.observation_space.seed(config.seed)
+        env.action_space.seed(config.seed)
         return env
 
     return thunk
@@ -59,7 +59,7 @@ class Env(gym.Env):
         super().__init__()
         self.eng = MutationEngine(*args)
 
-    def reset(self):
+    def reset(self, seed):
         initial_solution = SimulatedSample(eng.kernel_section, eng)
         _ = initial_solution.get_mutable()
         init_perf = max([eng.get_init_perf() for _ in range(5)])
