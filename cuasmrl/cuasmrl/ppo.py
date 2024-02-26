@@ -1,4 +1,5 @@
 import os
+
 import time
 import datetime
 
@@ -68,38 +69,44 @@ def env_loop(envs, config):
         #     run_name += f"__{config.annotation}"
         # run_name += f"__{t}"
         # save_path = f"{config.default_out_path}/runs/{run_name}"
-        save_path = config.save_path
+        save_path = os.path.join(config.default_out_path, config.save_dir)
         writer = SummaryWriter(save_path)
         # https://github.com/abseil/abseil-py/issues/57
         config.append_flags_into_file(save_path + "/flags.txt")
 
         logger.info(f"[ENV_LOOP]save path: {save_path}")
 
-    # ===== agent =====
+    # ===== agent & opt =====
     agent = PPO(out=envs.action_space.nvec[0], ).to(device)
-
-    # TODO automatically load the latest ckpt
-    # if config.weights_path is not None:
-    #     # TODO save+load opt states too?
-    #     logger.warning(
-    #         f"[ENV_LOOP] resuming from checkpoint {config.weights_path}")
-    #     agent_id = config.agent_id if config.agent_id is not None else "agent-final"
-    #     fn = os.path.join(f"{config.default_out_path}/runs/",
-    #                       config.weights_path, f"{agent_id}.pt")
-    #     agent_state_dict = torch.load(fn, map_location=device)
-    #     agent.load_state_dict(agent_state_dict)
-    #     agent.fine_tuning()
-    #     agent.to(device)
-
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
-    # resolve int config
+    # automatically load the latest ckpt
+    ckpt_files = [f for f in os.listdir(save_path) if f.endswith('.pt')]
+    latest_ckpt = None
+    max_epoch = -1
+    for file in ckpt_files:
+        epoch_num = file.split('_')[-1]
+        print('xxxx', file, epoch_num)
+        epoch_num = int(epoch_num)
+        if epoch_num > max_epoch:
+            max_epoch = epoch_num
+            latest_ckpt = file
+
+    if latest_ckpt is None:
+        epoch = 0
+    if latest_ckpt is not None:
+        latest_ckpt_path = os.path.join(save_path, latest_ckpt)
+        ckpt = torch.load(latest_ckpt_path)
+        agent.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        epoch = ckpt['epoch']
+
+    logger.info(f'start training from epoch {epoch}')
+
+    # ===== constants =====
     anneal_lr = bool(config.anneal_lr)
     norm_adv = bool(config.norm_adv)
     clip_vloss = bool(config.clip_vloss)
-
-    # utility
-    best_episodic_return = -float("inf")
 
     # ===== START GAME =====
     # ALGO Logic: Storage setup

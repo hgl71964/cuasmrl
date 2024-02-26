@@ -15,7 +15,7 @@ from cuasmrl.jit import jit
 from cuasmrl.autotuner import autotune as fgk_autotune
 from cuasmrl.utils.gpu_utils import get_gpu_name, get_gpu_cc
 
-
+# yapf: disable
 @dataclass
 class Config:
     # Kernel
@@ -176,116 +176,33 @@ def _attn_fwd_inner(
 
 @triton.autotune(
     configs=[
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=2,
-                      num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=4,
-                      num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=2, num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=8),
         # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
         # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
         # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=3,
-                      num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=4,
-                      num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=3,
-                      num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=4,
-                      num_warps=4),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=3,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=7,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=7,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=6,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=5,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 32
-        },
-                      num_stages=4,
-                      num_warps=8),
-        triton.Config({
-            'BLOCK_M': 128,
-            'BLOCK_N': 64
-        },
-                      num_stages=6,
-                      num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=3, num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=4),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=7, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=7, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=6, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=5, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=8),
+        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=6, num_warps=4),
     ],
     key=['N_CTX'],
 )
 @triton.jit
 def _attn_fwd_triton(
-        Q,
-        K,
-        V,
-        sm_scale,
-        M,
-        Out,  #
-        stride_qz,
-        stride_qh,
-        stride_qm,
-        stride_qk,  #
-        stride_kz,
-        stride_kh,
-        stride_kn,
-        stride_kk,  #
-        stride_vz,
-        stride_vh,
-        stride_vk,
-        stride_vn,  #
-        stride_oz,
-        stride_oh,
-        stride_om,
-        stride_on,  #
-        Z,
-        H,  #
+        Q, K, V, sm_scale, M, Out,  #
+        stride_qz, stride_qh, stride_qm, stride_qk,  #
+        stride_kz, stride_kh, stride_kn, stride_kk,  #
+        stride_vz, stride_vh, stride_vk, stride_vn,  #
+        stride_oz, stride_oh, stride_om, stride_on,  #
+        Z, H,  #
         N_CTX: tl.constexpr,  #
         BLOCK_M: tl.constexpr,  #
         BLOCK_DMODEL: tl.constexpr,  #
@@ -402,30 +319,12 @@ def attn_forward(q, k, v, M, o, grid, causal, sm_scale, kernel, load_dir):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     kernel[grid](
-        q,
-        k,
-        v,
-        sm_scale,
-        M,
-        o,  #
-        q.stride(0),
-        q.stride(1),
-        q.stride(2),
-        q.stride(3),  #
-        k.stride(0),
-        k.stride(1),
-        k.stride(2),
-        k.stride(3),  #
-        v.stride(0),
-        v.stride(1),
-        v.stride(2),
-        v.stride(3),  #
-        o.stride(0),
-        o.stride(1),
-        o.stride(2),
-        o.stride(3),  #
-        q.shape[0],
-        q.shape[1],  #
+        q, k, v, sm_scale, M, o,  #
+        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
+        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
+        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
+        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
+        q.shape[0], q.shape[1],  #
         N_CTX=q.shape[2],  #
         # BLOCK_M=BLOCK_M,  #
         # BLOCK_N=BLOCK_N,  #
@@ -447,30 +346,12 @@ def triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale, kernel):
 
     # q, k, v: (Z, H, N_CTX, D_HEAD)
     kernel[grid](
-        q,
-        k,
-        v,
-        sm_scale,
-        M,
-        o,  #
-        q.stride(0),
-        q.stride(1),
-        q.stride(2),
-        q.stride(3),  #
-        k.stride(0),
-        k.stride(1),
-        k.stride(2),
-        k.stride(3),  #
-        v.stride(0),
-        v.stride(1),
-        v.stride(2),
-        v.stride(3),  #
-        o.stride(0),
-        o.stride(1),
-        o.stride(2),
-        o.stride(3),  #
-        q.shape[0],
-        q.shape[1],  #
+        q, k, v, sm_scale, M, o,  #
+        q.stride(0), q.stride(1), q.stride(2), q.stride(3),  #
+        k.stride(0), k.stride(1), k.stride(2), k.stride(3),  #
+        v.stride(0), v.stride(1), v.stride(2), v.stride(3),  #
+        o.stride(0), o.stride(1), o.stride(2), o.stride(3),  #
+        q.shape[0], q.shape[1],  #
         N_CTX=q.shape[2],  #
         # BLOCK_M=BLOCK_M,  #
         # BLOCK_N=BLOCK_N,  #
@@ -517,12 +398,7 @@ def main():
 
     @fgk_autotune(
         configs=[
-            triton.Config({
-                'BLOCK_M': 128,
-                'BLOCK_N': 64
-            },
-                          num_stages=2,
-                          num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=2, num_warps=4),
             # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_stages=4, num_warps=8),
             # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
             # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
@@ -545,30 +421,12 @@ def main():
     )
     @jit
     def _attn_fwd(
-            Q,
-            K,
-            V,
-            sm_scale,
-            M,
-            Out,  #
-            stride_qz,
-            stride_qh,
-            stride_qm,
-            stride_qk,  #
-            stride_kz,
-            stride_kh,
-            stride_kn,
-            stride_kk,  #
-            stride_vz,
-            stride_vh,
-            stride_vk,
-            stride_vn,  #
-            stride_oz,
-            stride_oh,
-            stride_om,
-            stride_on,  #
-            Z,
-            H,  #
+            Q, K, V, sm_scale, M, Out,  #
+            stride_qz, stride_qh, stride_qm, stride_qk,  #
+            stride_kz, stride_kh, stride_kn, stride_kk,  #
+            stride_vz, stride_vh, stride_vk, stride_vn,  #
+            stride_oz, stride_oh, stride_om, stride_on,  #
+            Z, H,  #
             N_CTX: tl.constexpr,  #
             BLOCK_M: tl.constexpr,  #
             BLOCK_DMODEL: tl.constexpr,  #

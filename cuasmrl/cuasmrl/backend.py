@@ -82,6 +82,12 @@ class Env(gym.Env):
         index, direction = action
         self.sample.apply(index, direction)
 
+        # run
+
+        # handle -1
+
+        # ...
+
     def _build_state(self):
         return
 
