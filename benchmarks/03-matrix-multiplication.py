@@ -6,9 +6,9 @@ import torch
 import triton
 import triton.language as tl
 
-from fgk.jit import jit
-from fgk.autotuner import autotune as fgk_autotune
-from fgk.utils.gpu_utils import get_gpu_name
+from cuasmrl.jit import jit
+from cuasmrl.autotuner import autotune as fgk_autotune
+from cuasmrl.utils.gpu_utils import get_gpu_name
 
 from absl import app
 from absl import flags

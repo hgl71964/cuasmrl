@@ -7,9 +7,9 @@ import triton.language as tl
 import random
 import numpy as np
 
-from fgk.jit import search, jit
-from fgk.autotuner import autotune as fgk_autotune
-from fgk.utils.gpu_utils import get_gpu_name, get_gpu_cc
+from cuasmrl.jit import jit
+from cuasmrl.autotuner import autotune as fgk_autotune
+from cuasmrl.utils.gpu_utils import get_gpu_name, get_gpu_cc
 
 from absl import app
 from absl import flags
@@ -19,12 +19,8 @@ FLAGS = flags.FLAGS
 
 # kernel
 flags.DEFINE_string("default_out_path", "data", "output dir")
-flags.DEFINE_integer("dump", 0, "whether to dump")
-flags.DEFINE_integer("hack", 0, "whether to hack")
-flags.DEFINE_integer("flash", 0, "whether to use flash attention")
 flags.DEFINE_integer("seed", 1337, "")
 flags.DEFINE_integer("n_tests", 100, "")
-flags.DEFINE_integer("n_choices", 1, "+-n choices")
 flags.DEFINE_string("load", None, "")
 flags.DEFINE_integer("bench", 0, "whether to bench")
 
@@ -33,18 +29,6 @@ flags.DEFINE_integer("Z", 1, "")
 flags.DEFINE_integer("H", 4, "")
 flags.DEFINE_integer("wl", 16384, "")
 flags.DEFINE_integer("D_HEAD", 64, "")
-
-# sa
-flags.DEFINE_integer("max_iterations", 1000, "")
-flags.DEFINE_float("temperature", 0.4, "")
-flags.DEFINE_float("cooling_rate", 0.003, "")
-flags.DEFINE_float("noise_factor", 0.1, "")
-flags.DEFINE_string("policy", "single", "mutation policy; single or all")
-# genetic
-flags.DEFINE_integer("population_size", 100, "")
-flags.DEFINE_integer("generations", 50, "")
-flags.DEFINE_float("mutation_rate", 0.1, "")
-flags.DEFINE_integer("tournament_size", 5, "")
 
 GPU = get_gpu_name()
 

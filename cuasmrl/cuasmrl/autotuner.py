@@ -10,7 +10,6 @@ from triton.testing import do_bench
 from triton.runtime.autotuner import Autotuner as TritonAutotuner
 from triton.runtime.autotuner import OutOfResources
 
-from cuasmrl.jit import asm_JITFunction
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.gpu_utils import get_gpu_name
 

@@ -4,7 +4,7 @@ from triton.runtime.jit import T, JITFunction, KernelArg, get_current_device, se
 from triton.compiler.compiler import CompiledKernel, compile, get_arch_default_num_stages, get_arch_default_num_warps
 from triton.common.backend import get_backend, get_cuda_version_key
 
-from cuasmrl.simulated_annealing import run_simulated_annealing, launch_simulated_annealing
+from cuasmrl.simulated_annealing import run_simulated_annealing
 from cuasmrl.selection import run_selection
 
 from cuasmrl.compiler import compile as fgk_compile

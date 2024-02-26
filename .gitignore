@@ -48,3 +48,4 @@ docs/getting-started/tutorials
 data/
 torch_compile_debug/
 tmp/
+*egg-info
