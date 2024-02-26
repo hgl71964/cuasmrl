@@ -95,3 +95,24 @@ class Sample(ABC):
         self.actions = actions
         for index, action in zip(indexes, actions):
             self.apply(index, action)
+
+
+class SimulatedSample(Sample):
+
+    def apply(self, index, action):
+        lineno = self.candidates[index]
+        if action == -1:
+            self.kernel_section[lineno - 1], self.kernel_section[
+                lineno] = self.kernel_section[lineno], self.kernel_section[
+                    lineno - 1]
+            self.candidates[index] -= 1
+        elif action == 1:
+            self.kernel_section[lineno], self.kernel_section[
+                lineno +
+                1] = self.kernel_section[lineno +
+                                         1], self.kernel_section[lineno]
+            self.candidates[index] += 1
+        elif action == 0:
+            pass
+        else:
+            assert False, f'invalid action: {action}'

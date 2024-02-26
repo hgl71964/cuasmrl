@@ -15,7 +15,7 @@ import torch
 from CuAsm.CubinFile import CubinFile
 
 # mutation
-from cuasmrl.mutator import MutationEngine
+from cuasmrl.backend import MutationEngine
 from cuasmrl.sample import Sample
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.record import save_data, read_data

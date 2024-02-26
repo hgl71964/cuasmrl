@@ -1,7 +1,5 @@
 import sys
 import subprocess
-from multiprocessing import Process, Queue
-
 import tempfile
 from functools import lru_cache
 
@@ -12,10 +10,66 @@ from triton.compiler.compiler import CompiledKernel
 
 from CuAsm.CuAsmParser import CuAsmParser
 
-from cuasmrl.sample import Sample
+from cuasmrl.sample import Sample, SimulatedSample
 from cuasmrl.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+from copy import deepcopy
+
+import gymnasium as gym
+from gymnasium.envs.registration import register
+
+logger = get_logger(__name__)
+
+register(
+    id="cuasmenv-v0",
+    entry_point="cuasmrl.mutator:Env",
+)
+
+
+def make_env(
+    env_id,
+    eng,
+    config,
+):
+
+    def thunk():
+        env = gym.make(env_id, verbose=bool(config.verbose))
+
+        # utility wrapper
+        # env = gym.wrappers.NormalizeReward(env)  # this influences learning significantly
+        if config.h is not None:
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
+        if bool(config.normalize_reward):
+            env = gym.wrappers.NormalizeReward(env)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+
+        # seed env
+        env.observation_space.seed(seed)
+        env.action_space.seed(seed)
+        return env
+
+    return thunk
+
+
+class Env(gym.Env):
+
+    def __init__(self, *args):
+        super().__init__()
+        self.eng = MutationEngine(*args)
+
+    def reset(self):
+        initial_solution = SimulatedSample(eng.kernel_section, eng)
+        _ = initial_solution.get_mutable()
+        init_perf = max([eng.get_init_perf() for _ in range(5)])
+        logger.info(
+            f'init perf: {init_perf:.2f}; dims: {initial_solution.dims}')
+        if init_perf < 0:
+            raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
+
+    def step(self, action):
+        pass
 
 
 class MutationEngine:
@@ -24,7 +78,6 @@ class MutationEngine:
         self,
         bin: CompiledKernel,
         cf,
-        config: dict,
         grid_0,
         grid_1,
         grid_2,
@@ -32,6 +85,7 @@ class MutationEngine:
         launch_enter_hook,
         launch_exit_hook,
         non_constexpr_arg_values,
+        total_flops,
     ):
         self.bin = bin
 
@@ -79,7 +133,7 @@ class MutationEngine:
 
         self.cf = cf
 
-        self.config = config
+        self.total_flops = total_flops
 
         self.grid_0 = grid_0
         self.grid_1 = grid_1
@@ -197,9 +251,7 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                warmup = self.config['warmup']
-                rep = self.config['rep']
-                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
@@ -210,7 +262,7 @@ class MutationEngine:
         else:
             ms = -1
 
-        total_flops = self.config.get('total_flops', None)
+        total_flops = self.total_flops
 
         if total_flops is not None:
             tflops = total_flops / ms * 1e-9

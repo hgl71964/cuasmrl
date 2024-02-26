@@ -11,7 +11,7 @@ from CuAsm.CuAsmParser import CuAsmParser
 from cuasmrl.compiler import CompiledKernel as fgk_CompiledKernel
 from cuasmrl.verify import test_via_cubin
 from cuasmrl.utils.logger import get_logger
-from cuasmrl.mutator import MutationEngine
+from cuasmrl.backend import MutationEngine
 
 logger = get_logger(__name__)
 
