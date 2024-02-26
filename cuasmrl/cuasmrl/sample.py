@@ -5,7 +5,7 @@ from cuasmrl.utils.constant import get_mutatable_ops
 from cuasmrl.utils.gpu_utils import get_gpu_cc
 
 
-class Sample(ABC):
+class Sample:
 
     def __init__(self, kernel_section: list[str], engine):
         self.kernel_section = deepcopy(kernel_section)
@@ -50,9 +50,6 @@ class Sample(ABC):
         self._perf = value
 
     def get_mutable(self) -> list[int]:
-        if self.dims is not None:
-            return self.candidates
-
         # determine which lines are possible to mutate
         # e.g. LDG, STG, and they should not cross the boundary of a label or
         # LDGDEPBAR or BAR.SYNC or rw dependencies
@@ -86,18 +83,6 @@ class Sample(ABC):
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.candidates
-
-    @abstractmethod
-    def apply(self, index, action):
-        pass
-
-    def apply_all(self, indexes, actions):
-        self.actions = actions
-        for index, action in zip(indexes, actions):
-            self.apply(index, action)
-
-
-class SimulatedSample(Sample):
 
     def apply(self, index, action):
         lineno = self.candidates[index]

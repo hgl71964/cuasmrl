@@ -53,8 +53,8 @@ class PPO(nn.Module):
 
 
 def env_loop(envs, config):
-    device = torch.device("cuda" if torch.cuda.is_available()
-                          and config.gpu == 'cuda' else "cpu")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
     logger.info(f"device: {device}")
 
     # ===== log =====
@@ -164,7 +164,7 @@ def env_loop(envs, config):
             if "final_info" in infos:
                 for info in infos["final_info"]:
                     if info and "episode" in info:
-                        print(
+                        logger.info(
                             f"global_step={global_step}, episodic_return={info['episode']['r']}"
                         )
                         writer.add_scalar("charts/episodic_return",

@@ -90,7 +90,7 @@ def run_drl(
         config.env_id,
         eng,
         config,
-    )
+    )()
 
     # ===== run =====
     _t1 = time.perf_counter()

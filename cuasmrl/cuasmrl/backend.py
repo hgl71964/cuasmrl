@@ -1,30 +1,26 @@
 import sys
 import subprocess
 import tempfile
+from copy import deepcopy
 from functools import lru_cache
 
-from copy import deepcopy
+import gymnasium as gym
+from gymnasium.envs.registration import register
+from gymnasium.spaces import Box, MultiDiscrete, Discrete, Text
 
 import triton
 from triton.compiler.compiler import CompiledKernel
 
 from CuAsm.CuAsmParser import CuAsmParser
 
-from cuasmrl.sample import Sample, SimulatedSample
+from cuasmrl.sample import Sample
 from cuasmrl.utils.logger import get_logger
-
-logger = get_logger(__name__)
-
-from copy import deepcopy
-
-import gymnasium as gym
-from gymnasium.envs.registration import register
 
 logger = get_logger(__name__)
 
 register(
     id="cuasmenv-v0",
-    entry_point="cuasmrl.mutator:Env",
+    entry_point="cuasmrl.backend:Env",
 )
 
 
@@ -35,14 +31,13 @@ def make_env(
 ):
 
     def thunk():
-        env = gym.make(env_id, verbose=bool(config.verbose))
+        env = gym.make(env_id, eng=eng, verbose=bool(config.verbose))
 
         # utility wrapper
-        # env = gym.wrappers.NormalizeReward(env)  # this influences learning significantly
-        # if config.h is not None:
-        #     env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
-        # if bool(config.normalize_reward):
-        #     env = gym.wrappers.NormalizeReward(env)
+        if config.h is not None:
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
+        if bool(config.normalize_reward):
+            env = gym.wrappers.NormalizeReward(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
 
         # seed env
@@ -55,21 +50,40 @@ def make_env(
 
 class Env(gym.Env):
 
-    def __init__(self, *args):
+    def __init__(self, eng, verbose):
         super().__init__()
-        self.eng = MutationEngine(*args)
+        self.eng = eng
+        self.verbose = verbose
+
+        # spaces
+        sample = Sample(self.eng.kernel_section, self.eng)
+        sample.get_mutable()
+
+        # n line, each line can move up or down
+        self.action_space = MultiDiscrete([sample.dims, 2])
+        self.observation_space = Box()
 
     def reset(self, seed):
-        initial_solution = SimulatedSample(eng.kernel_section, eng)
-        _ = initial_solution.get_mutable()
-        init_perf = max([eng.get_init_perf() for _ in range(5)])
+        self.sample = Sample(self.eng.kernel_section, self.eng)
+        self.sample.get_mutable()
+
+        init_perf = max([self.eng.get_init_perf() for _ in range(1)])
+        self.init_perf = init_perf
+
         logger.info(
-            f'init perf: {init_perf:.2f}; dims: {initial_solution.dims}')
+            f'[RESET] init perf: {init_perf:.2f}; dims: {self.sample.dims}')
         if init_perf < 0:
             raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
+        state = self._build_state()
+        return state, {}
+
     def step(self, action):
-        pass
+        index, direction = action
+        self.sample.apply(index, direction)
+
+    def _build_state(self):
+        return
 
 
 class MutationEngine:
