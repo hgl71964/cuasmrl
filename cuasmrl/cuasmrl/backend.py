@@ -70,7 +70,7 @@ class Env(gym.Env):
         self.action_space = MultiDiscrete([dims, 2])
 
         # see Sample.embedding() for state space design
-        n_feat = 10  # FIXME
+        n_feat = 6
         self.observation_space = Box(low=-1.0,
                                      high=1.0,
                                      shape=(total, n_feat),

@@ -1,4 +1,8 @@
 import os
+from dataclasses import asdict
+from typing import Optional
+import json
+
 
 import time
 import datetime
@@ -23,7 +27,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 class PPO(nn.Module):
 
-    def __init__(self, out):
+    def __init__(self, n_actions):
         super().__init__()
         self.network = nn.Sequential(
             layer_init(nn.Conv2d(4, 32, 8, stride=4)),
@@ -36,8 +40,9 @@ class PPO(nn.Module):
             layer_init(nn.Linear(64 * 7 * 7, 512)),
             nn.ReLU(),
         )
-        self.actor = layer_init(nn.Linear(512, out), std=0.01)
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
+        self.nvec = n_actions
+        self.actor = layer_init(nn.Linear(128, self.nvec.sum()), std=0.01)
+        self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def get_value(self, x):
         return self.critic(self.network(x / 255.0))
@@ -52,10 +57,11 @@ class PPO(nn.Module):
             hidden)
 
 
-def env_loop(envs, config):
+def env_loop(env, config):
+    save_path = os.path.join(config.default_out_path, config.save_dir)
     device = torch.device(
         "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
-    logger.info(f"[ENV_LOOP]device: {device}")
+    logger.info(f"[ENV_LOOP] WorkDir: {save_path}; Device: {device}")
 
     # ===== log =====
     log = bool(config.log)
@@ -68,14 +74,19 @@ def env_loop(envs, config):
         #     run_name += f"__{config.annotation}"
         # run_name += f"__{t}"
         # save_path = f"{config.default_out_path}/runs/{run_name}"
-        save_path = os.path.join(config.default_out_path, config.save_dir)
         writer = SummaryWriter(save_path)
         # https://github.com/abseil/abseil-py/issues/57
-        config.append_flags_into_file(save_path + "/flags.txt")
+
+        config_dict = asdict(config)
+        config_json = json.dumps(config_dict, indent=4)
+        with open(os.path.join(save_path, "drl_config.json"), "w") as file:
+            file.write(config_json)
+
         logger.info(f"[ENV_LOOP]save path: {save_path}")
 
+
     # ===== agent & opt =====
-    agent = PPO(out=envs.action_space.nvec[0], ).to(device)
+    agent = PPO(n_actions=env.action_space.nvec[0]).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
     # automatically load the latest ckpt
@@ -84,7 +95,7 @@ def env_loop(envs, config):
     max_epoch = -1
     for file in ckpt_files:
         epoch_num = file.strip('.pt').split('_')[-1]
-        print('xxxx', file, epoch_num)
+        logger.critical('xxxx', file, epoch_num)
         epoch_num = int(epoch_num)
         if epoch_num > max_epoch:
             max_epoch = epoch_num
@@ -99,7 +110,7 @@ def env_loop(envs, config):
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         iteration = ckpt['iteration'] + 1
 
-    logger.info(f'[ENV_LOOP]start training from iteration {iteration}')
+    logger.info(f'[ENV_LOOP] start training from iteration {iteration}')
 
     # ===== constants =====
     anneal_lr = bool(config.anneal_lr)
@@ -108,35 +119,22 @@ def env_loop(envs, config):
 
     # ===== START GAME =====
     # ALGO Logic: Storage setup
-    # FIXME fix envs space
-    obs = torch.zeros((config.num_steps, config.num_envs) +
-                      envs.observation_space.shape).to(device)
-    # obs = []  # collect graphs
+    obs = torch.zeros((config.num_steps, config.num_env) +
+                      env.observation_space.shape).to(device)
     actions = torch.zeros(
-        # (config.num_steps, config.num_envs) + envs.single_action_space.shape,
-        (config.num_steps, config.num_envs),
+        (config.num_steps, config.num_env) + env.action_space.shape,
         dtype=torch.long).to(device)
-    logprobs = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    rewards = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    dones = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    values = torch.zeros((config.num_steps, config.num_envs)).to(device)
-
-    # ALGO Logic: Storage setup
-    obs = torch.zeros((config.num_steps, config.num_envs) +
-                      envs.observation_space.shape).to(device)
-    actions = torch.zeros((config.num_steps, config.num_envs) +
-                          envs.single_action_space.shape).to(device)
-    logprobs = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    rewards = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    dones = torch.zeros((config.num_steps, config.num_envs)).to(device)
-    values = torch.zeros((config.num_steps, config.num_envs)).to(device)
+    logprobs = torch.zeros((config.num_steps, config.num_env)).to(device)
+    rewards = torch.zeros((config.num_steps, config.num_env)).to(device)
+    dones = torch.zeros((config.num_steps, config.num_env)).to(device)
+    values = torch.zeros((config.num_steps, config.num_env)).to(device)
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_obs, _ = envs.reset(seed=config.seed)
+    next_obs, _ = env.reset(seed=config.seed)
     next_obs = torch.Tensor(next_obs).to(device)
-    next_done = torch.zeros(config.num_envs).to(device)
+    next_done = torch.zeros(config.num_env).to(device)
 
     for iteration in range(1, config.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -146,7 +144,7 @@ def env_loop(envs, config):
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(0, config.num_steps):
-            global_step += config.num_envs
+            global_step += config.num_env
             obs[step] = next_obs
             dones[step] = next_done
 
@@ -159,7 +157,7 @@ def env_loop(envs, config):
             logprobs[step] = logprob
 
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, terminations, truncations, infos = envs.step(
+            next_obs, reward, terminations, truncations, infos = env.step(
                 action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
@@ -199,9 +197,9 @@ def env_loop(envs, config):
             returns = advantages + values
 
         # flatten the batch
-        b_obs = obs.reshape((-1, ) + envs.observation_space.shape)
+        b_obs = obs.reshape((-1, ) + env.observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
-        b_actions = actions.reshape((-1, ) + envs.single_action_space.shape)
+        b_actions = actions.reshape((-1, ) + env.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
@@ -302,17 +300,17 @@ def env_loop(envs, config):
                 }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
 
     # ===== STOP =====
-    envs.close()
+    env.close()
     if log:
         writer.close()
 
 
-def inference(envs, config):
+def inference(env, config):
     device = torch.device(
         "cuda" if torch.cuda.is_available() and bool(config.gpu) else "cpu")
     logger.info(f"device: {device}")
-    # ===== envs =====
-    state, _ = envs.reset(seed=config.seed)
+    # ===== env =====
+    state, _ = env.reset(seed=config.seed)
 
     # ===== agent =====
     assert config.weights_path is not None, "weights_path must be set"
@@ -326,7 +324,7 @@ def inference(envs, config):
 
     next_obs = pyg.data.Batch.from_data_list([i[0] for i in state]).to(device)
     invalid_rule_mask = torch.cat([i[2] for i in state]).reshape(
-        (envs.num_envs, -1)).to(device)
+        (env.num_env, -1)).to(device)
 
     # ==== rollouts ====
     cnt = 0
@@ -346,14 +344,14 @@ def inference(envs, config):
         # TRY NOT TO MODIFY: execute the game and log data.
         # print("a", action)
         # a = [tuple(i) for i in action.cpu()]
-        next_obs, _, terminated, truncated, _ = envs.step(action.cpu().numpy())
+        next_obs, _, terminated, truncated, _ = env.step(action.cpu().numpy())
         done = np.logical_or(terminated, truncated)
 
         if done.all():
             break
 
         invalid_rule_mask = torch.cat([i[2] for i in next_obs]).reshape(
-            (envs.num_envs, -1)).to(device)
+            (env.num_env, -1)).to(device)
 
         next_obs = pyg.data.Batch.from_data_list([i[0] for i in next_obs
                                                   ]).to(device)
