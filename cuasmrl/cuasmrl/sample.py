@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 
+import numpy as np
 import torch
 
 from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops
@@ -122,7 +123,8 @@ class Sample:
 
     def embedding(self, space):
         self.candidates.clear()
-        embeds = torch.zeros(space.shape, dtype=torch.float)
+        embeds = np.zeros(space.shape, dtype=np.float32)
+        cnt = 0
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
@@ -140,9 +142,15 @@ class Sample:
                         self.embed_dst(dst) + \
                         self.embed_src(src)
 
-                embeds[i] = torch.Tensor(embed, dtype=torch.float)
+                embeds[cnt] = np.array(embed, dtype=np.float32)
+                cnt += 1
                 if op_embed[0] == 1:
                     self.candidates.append(i)
+
+        # unsqueeze the first dim;
+        # so that it pre-appends `channel` dimension
+        # resulting shape: [C, H, W]
+        embeds = np.expand_dims(embeds, axis=0)
         return embeds
 
     def embed_ctrl_code(self, ctrl_code):

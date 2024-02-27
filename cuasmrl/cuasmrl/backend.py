@@ -65,26 +65,26 @@ class Env(gym.Env):
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
         dims, total = sample.get_mutable()
+        logger.info(f'[INIT] dims: {dims}; total: {total};')
 
         # n line, each line can move up or down; total number unchanged throughout
         self.action_space = MultiDiscrete([dims, 2])
 
         # see Sample.embedding() for state space design
         n_feat = 6
-        self.observation_space = Box(low=-1.0,
-                                     high=1.0,
+        self.observation_space = Box(low=-10.0,
+                                     high=10.0,
                                      shape=(total, n_feat),
                                      dtype=np.float32)
 
-    def reset(self, seed):
+    def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
 
         init_perf = max([self.eng.get_init_perf() for _ in range(1)])
         self.init_perf = init_perf
         self.last_perf = init_perf
 
-        logger.info(
-            f'[RESET] init perf: {init_perf:.2f}; dims: {self.sample.dims}')
+        logger.info(f'[RESET] init perf: {init_perf:.2f};')
         if init_perf < 0:
             raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 

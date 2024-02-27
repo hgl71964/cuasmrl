@@ -3,7 +3,6 @@ from dataclasses import asdict
 from typing import Optional
 import json
 
-
 import time
 import datetime
 
@@ -45,10 +44,10 @@ class PPO(nn.Module):
         self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def get_value(self, x):
-        return self.critic(self.network(x / 255.0))
+        return self.critic(self.network(x))
 
     def get_action_and_value(self, x, action=None):
-        hidden = self.network(x / 255.0)
+        hidden = self.network(x)
         logits = self.actor(hidden)
         probs = Categorical(logits=logits)
         if action is None:
@@ -83,7 +82,6 @@ def env_loop(env, config):
             file.write(config_json)
 
         logger.info(f"[ENV_LOOP]save path: {save_path}")
-
 
     # ===== agent & opt =====
     agent = PPO(n_actions=env.action_space.nvec[0]).to(device)
@@ -140,7 +138,7 @@ def env_loop(env, config):
         # Annealing the rate if instructed to do so.
         if anneal_lr:
             frac = 1.0 - (iteration - 1.0) / config.num_iterations
-            lrnow = frac * config.learning_rate
+            lrnow = frac * config.lr
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(0, config.num_steps):

@@ -38,7 +38,7 @@ class Config:
     ## Env
     env_id: str = 'cuasmenv-v0'
     num_env: int = 1
-    total_timesteps: int = int(1e6)
+    num_iterations: int = int(1e6)
     batch_size: int = 8
     h: int = 30
     num_steps: int = 512
@@ -83,7 +83,7 @@ def parse_args() -> Config:
     parser.add_argument("--verbose", type=int, default=0)
 
     parser.add_argument("--env_id", type=str, default='cuasmenv-v0')
-    parser.add_argument("--total_timesteps", type=int, default=int(1e6))
+    parser.add_argument("--num_iterations", type=int, default=int(1e6))
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--h", type=int, default=30)
     parser.add_argument("--num_steps", type=int, default=512)
