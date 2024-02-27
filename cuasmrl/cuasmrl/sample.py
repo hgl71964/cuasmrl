@@ -58,15 +58,17 @@ class Sample:
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:
-            self.kernel_section[lineno - 1], self.kernel_section[
-                lineno] = self.kernel_section[lineno], self.kernel_section[
-                    lineno - 1]
+            if lineno > 0:
+                self.kernel_section[lineno - 1], self.kernel_section[
+                    lineno] = self.kernel_section[lineno], self.kernel_section[
+                        lineno - 1]
             # self.candidates[index] -= 1
         elif action == 1:
-            self.kernel_section[lineno], self.kernel_section[
-                lineno +
-                1] = self.kernel_section[lineno +
-                                         1], self.kernel_section[lineno]
+            if lineno < len(self.kernel_section) - 1:
+                self.kernel_section[lineno], self.kernel_section[
+                    lineno +
+                    1] = self.kernel_section[lineno +
+                                             1], self.kernel_section[lineno]
             # self.candidates[index] += 1
         elif action == 0:
             pass
