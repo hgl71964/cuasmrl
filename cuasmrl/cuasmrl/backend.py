@@ -98,7 +98,7 @@ class Env(gym.Env):
         perf, cubin = self.eng.get_perf(self.sample)
         test_ok = True
         if perf > 0:
-            if not self.eng.test_fn(cubin, self.n_tests):
+            if not self.eng.test_fn(cubin, self.n_tests, self.n_tests):
                 test_ok = False
 
         truncated = False
@@ -212,6 +212,7 @@ class MutationEngine:
         dest = None
         src = []
 
+        # ctrl
         idx = -1
         for i in range(0, n):
             if line[i] != '':
@@ -220,12 +221,18 @@ class MutationEngine:
                 break
         assert idx > -1, f'no ctrl: {line}'
 
+        if ctrl_code.startswith('.'):
+            # labels
+            return None, None, None, None, None, None
+
+        # comment
         for i in range(idx + 1, n):
             if line[i] != '':
                 idx = i
                 comment = line[i]
                 break
 
+        # predicate
         for i in range(idx + 1, n):
             if line[i] != '':
 
@@ -237,6 +244,7 @@ class MutationEngine:
                 idx = i
                 break
 
+        # opcode
         if opcode is None:
             for i in range(idx + 1, n):
                 if line[i] != '':
@@ -244,11 +252,16 @@ class MutationEngine:
                     idx = i
                     break
 
+        # operand
         for i in range(idx + 1, n):
             if line[i] != '':
                 dest = line[i].strip(',')
                 idx = i
                 break
+
+        if dest == ';':
+            # LDGDEPBAR inst
+            dest = None
 
         for i in range(idx + 1, n):
             if line[i] == ';':

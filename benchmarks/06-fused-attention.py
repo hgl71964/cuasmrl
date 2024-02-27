@@ -37,6 +37,7 @@ class Config:
     verbose: int = 0
     ## Env
     env_id: str = 'cuasmenv-v0'
+    num_envs: int = 1
     total_timesteps: int = int(1e6)
     batch_size: int = 8
     h: int = 30

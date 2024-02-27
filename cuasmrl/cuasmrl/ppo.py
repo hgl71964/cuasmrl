@@ -72,7 +72,6 @@ def env_loop(envs, config):
         writer = SummaryWriter(save_path)
         # https://github.com/abseil/abseil-py/issues/57
         config.append_flags_into_file(save_path + "/flags.txt")
-
         logger.info(f"[ENV_LOOP]save path: {save_path}")
 
     # ===== agent & opt =====
@@ -109,9 +108,9 @@ def env_loop(envs, config):
 
     # ===== START GAME =====
     # ALGO Logic: Storage setup
-    # TODO fix envs space
+    # FIXME fix envs space
     obs = torch.zeros((config.num_steps, config.num_envs) +
-                      envs.single_observation_space.shape).to(device)
+                      envs.observation_space.shape).to(device)
     # obs = []  # collect graphs
     actions = torch.zeros(
         # (config.num_steps, config.num_envs) + envs.single_action_space.shape,
@@ -124,7 +123,7 @@ def env_loop(envs, config):
 
     # ALGO Logic: Storage setup
     obs = torch.zeros((config.num_steps, config.num_envs) +
-                      envs.single_observation_space.shape).to(device)
+                      envs.observation_space.shape).to(device)
     actions = torch.zeros((config.num_steps, config.num_envs) +
                           envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((config.num_steps, config.num_envs)).to(device)
@@ -200,7 +199,7 @@ def env_loop(envs, config):
             returns = advantages + values
 
         # flatten the batch
-        b_obs = obs.reshape((-1, ) + envs.single_observation_space.shape)
+        b_obs = obs.reshape((-1, ) + envs.observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape((-1, ) + envs.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
