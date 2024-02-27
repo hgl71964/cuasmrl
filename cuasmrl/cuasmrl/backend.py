@@ -69,6 +69,7 @@ class Env(gym.Env):
         # n line, each line can move up or down; total number unchanged throughout
         self.action_space = MultiDiscrete([dims, 2])
 
+        # see Sample.embedding() for state space design
         n_feat = 10  # FIXME
         self.observation_space = Box(low=-1.0,
                                      high=1.0,
@@ -126,7 +127,7 @@ class Env(gym.Env):
         return state, reward, terminated, truncated, info
 
     def _build_state(self):
-        return self.sample.embedding()
+        return self.sample.embedding(self.observation_space)
 
 
 class MutationEngine:
@@ -268,7 +269,7 @@ class MutationEngine:
                 break
 
             if line[i] != '':
-                src.append(line[i])
+                src.append(line[i].strip(','))
 
         return ctrl_code, comment, predicate, opcode, dest, src
 

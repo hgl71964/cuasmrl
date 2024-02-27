@@ -1,8 +1,12 @@
 import os
 from copy import deepcopy
 
+import torch
+
 from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops
 from cuasmrl.utils.logger import get_logger
+
+MEMORY_OPS, BAN_OPS = get_mutatable_ops(get_gpu_cc())
 
 logger = get_logger(__name__)
 
@@ -57,13 +61,13 @@ class Sample:
             self.kernel_section[lineno - 1], self.kernel_section[
                 lineno] = self.kernel_section[lineno], self.kernel_section[
                     lineno - 1]
-            self.candidates[index] -= 1
+            # self.candidates[index] -= 1
         elif action == 1:
             self.kernel_section[lineno], self.kernel_section[
                 lineno +
                 1] = self.kernel_section[lineno +
                                          1], self.kernel_section[lineno]
-            self.candidates[index] += 1
+            # self.candidates[index] += 1
         elif action == 0:
             pass
         else:
@@ -74,8 +78,6 @@ class Sample:
         if os.getenv("SIP_DEBUG", "0") == "1":
             debug = True
 
-        memory_ops, ban_ops = get_mutatable_ops(get_gpu_cc())
-
         # determine which lines are possible to mutate
         # e.g. LDG, STG, and they should not cross the boundary of a label or
         # LDGDEPBAR or BAR.SYNC or rw dependencies
@@ -85,13 +87,17 @@ class Sample:
             line = line.strip()
             # skip headers
             if len(line) > 0 and line[0] == '[':
-                cnt += 1
                 out = self.engine.decode(line)
                 ctrl_code, _, predicate, opcode, dst, src = out
+                if ctrl_code is None:
+                    # a label
+                    continue
+
+                cnt += 1
                 # opcode is like: LDG.E.128.SYS
                 # i.e. {inst}.{modifier*}
                 ban = False
-                for op in ban_ops:
+                for op in BAN_OPS:
                     if op in opcode:
                         ban = True
                         break
@@ -100,7 +106,7 @@ class Sample:
                         logger.warning(f'ban {ctrl_code} {opcode}')
                     continue
 
-                for op in memory_ops:
+                for op in MEMORY_OPS:
                     if op in opcode:
                         if debug:
                             logger.info(f'mutable {ctrl_code} {opcode}')
@@ -112,13 +118,65 @@ class Sample:
         self.dims = len(self.candidates)
         return self.dims, cnt
 
-    def embedding(self):
-        embed = []
+    def embedding(self, space):
+        self.candidates.clear()
+        embeds = torch.zeros(space.shape, dtype=torch.float)
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
             if len(line) > 0 and line[0] == '[':
                 out = self.engine.decode(line)
                 ctrl_code, _, predicate, opcode, dst, src = out
+                if ctrl_code is None:
+                    # a label
+                    continue
 
-        return embed
+                op_embed = self.embed_opcode(opcode)
+                embed = self.embed_ctrl_code(ctrl_code) + \
+                        self.embed_predicate(predicate) + \
+                        op_embed + \
+                        self.embed_dst(dst) + \
+                        self.embed_src(src)
+
+                embeds[i] = torch.Tensor(embed, dtype=torch.float)
+                if op_embed[0] == 1:
+                    self.candidates.append(i)
+        return embeds
+
+    def embed_ctrl_code(self, ctrl_code):
+        _, read, write, yield_flag, stall_count = self.engine.decode_ctrl_code(
+            ctrl_code)
+        yield_flag = 1 if yield_flag == 'Y' else 0
+        stall_count = int(stall_count[1:-1])
+        return [yield_flag, stall_count]
+
+    def embed_predicate(self, predicate):
+        if predicate is None:
+            return [0]
+        return [1]
+
+    def embed_opcode(self, opcode):
+        # opcode is like: LDG.E.128.SYS
+        # i.e. {inst}.{modifier*}
+        memory_op = 0
+        ban = False
+        for op in BAN_OPS:
+            if op in opcode:
+                ban = True
+                break
+
+        if not ban:
+            for op in MEMORY_OPS:
+                if op in opcode:
+                    memory_op = 1
+                    break
+        return [memory_op]
+
+    def embed_dst(self, dst):
+        # TODO pre scan to build a database of memory loc; then integerize?
+        if dst is None:
+            return [0]
+        return [1]
+
+    def embed_src(self, src):
+        return [len(src)]
