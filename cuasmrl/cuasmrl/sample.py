@@ -113,9 +113,12 @@ class Sample:
         return self.dims, cnt
 
     def embedding(self):
+        embed = []
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
             if len(line) > 0 and line[0] == '[':
                 out = self.engine.decode(line)
                 ctrl_code, _, predicate, opcode, dst, src = out
+
+        return embed

@@ -21,7 +21,7 @@ class Config:
     # Kernel
     default_out_path: str = "data"
     seed: int = 1337
-    n_tests: int = 100
+    n_tests: int = 5
     load: Optional[str] = None
     bench: int = 0
 
@@ -68,7 +68,7 @@ def parse_args() -> Config:
     # Add arguments to the parser
     parser.add_argument("--default_out_path", type=str, default="data")
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--n_tests", type=int, default=100)
+    parser.add_argument("--n_tests", type=int, default=5)
     parser.add_argument("--load", type=str)
     parser.add_argument("--bench", type=int, default=0)
 

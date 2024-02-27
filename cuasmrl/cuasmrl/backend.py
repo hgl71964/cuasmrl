@@ -17,6 +17,7 @@ from CuAsm.CuAsmParser import CuAsmParser
 
 from cuasmrl.sample import Sample
 from cuasmrl.utils.logger import get_logger
+from cuasmrl.utils.constants import Status
 
 logger = get_logger(__name__)
 
@@ -33,7 +34,10 @@ def make_env(
 ):
 
     def thunk():
-        env = gym.make(env_id, eng=eng, verbose=bool(config.verbose))
+        env = gym.make(env_id,
+                       eng=eng,
+                       n_tests=config.n_tests,
+                       verbose=bool(config.verbose))
 
         # utility wrapper
         if config.h is not None:
@@ -52,9 +56,10 @@ def make_env(
 
 class Env(gym.Env):
 
-    def __init__(self, eng, verbose):
+    def __init__(self, eng, n_tests, verbose):
         super().__init__()
         self.eng = eng
+        self.n_tests = n_tests
         self.verbose = verbose
 
         # spaces
@@ -72,10 +77,10 @@ class Env(gym.Env):
 
     def reset(self, seed):
         self.sample = Sample(self.eng.kernel_section, self.eng)
-        self.sample.get_mutable()
 
         init_perf = max([self.eng.get_init_perf() for _ in range(1)])
         self.init_perf = init_perf
+        self.last_perf = init_perf
 
         logger.info(
             f'[RESET] init perf: {init_perf:.2f}; dims: {self.sample.dims}')
@@ -89,14 +94,39 @@ class Env(gym.Env):
         index, direction = action
         self.sample.apply(index, direction)
 
-        # run
+        # run and test
+        perf, cubin = self.eng.get_perf(self.sample)
+        test_ok = True
+        if perf > 0:
+            if not self.eng.test_fn(cubin, self.n_tests):
+                test_ok = False
 
-        # handle -1
+        truncated = False
+        terminated = False
+        info = {}
+        reward = None
+        state = None
+        if perf < 0:
+            # segfault
+            info['status'] = Status.SEGFAULT
+            reward = -1
+        elif not test_ok:
+            # test failed
+            info['status'] = Status.TESTFAIL
+            reward = -1
+        else:
+            # valid
+            info['status'] = Status.OK
+            reward = (self.last_perf - perf) / self.init_perf
 
-        # ...
+        # update
+        state = self._build_state()
+        self.last_perf = perf
+
+        return state, reward, terminated, truncated, info
 
     def _build_state(self):
-        return
+        return self.sample.embedding()
 
 
 class MutationEngine:

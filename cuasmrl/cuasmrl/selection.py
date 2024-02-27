@@ -105,6 +105,7 @@ def run_selection(
         test_all = False
         if os.getenv("SIP_TESTALL", "0") == "1":
             test_all = True
+        test_batch_size = int(os.getenv("SIP_TESTBATCH", "1"))
 
         # run verificaiton greedily
         cnt = 0
@@ -137,6 +138,7 @@ def run_selection(
                     None,
                     cubin,
                     n_test_samples,
+                    test_batch_size,
                 )
             except Exception as e:
                 logger.warning(f'run {run} verify failed: {e}')
