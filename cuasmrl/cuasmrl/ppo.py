@@ -26,22 +26,28 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 class PPO(nn.Module):
 
-    def __init__(self, n_actions):
+    def __init__(self, observation_space, nvec):
         super().__init__()
+        H, W = observation_space.shape
+
+        # after = (before + padding*2 - kernel_size//2) // stride
+        H1, W1 = (H + 2 - 4) // 2, W
+        H2, W2 = (H1 + 0 - 4 // 2) // 2, (W1 + 1 * 2 - 4 // 2) // 2
+        H3, W3 = H2 - 2, W2 - 2
         self.network = nn.Sequential(
-            layer_init(nn.Conv2d(4, 32, 8, stride=4)),
+            layer_init(nn.Conv2d(1, 32, (5, 3), stride=(2, 1), padding=1)),
             nn.ReLU(),
-            layer_init(nn.Conv2d(32, 64, 4, stride=2)),
+            layer_init(nn.Conv2d(32, 64, 4, stride=2, padding=(0, 1))),
             nn.ReLU(),
             layer_init(nn.Conv2d(64, 64, 3, stride=1)),
             nn.ReLU(),
-            nn.Flatten(),
-            layer_init(nn.Linear(64 * 7 * 7, 512)),
+            nn.Flatten(0, -1),
+            layer_init(nn.Linear(64 * H3 * W3, 512)),
             nn.ReLU(),
         )
-        self.nvec = n_actions
-        self.actor = layer_init(nn.Linear(128, self.nvec.sum()), std=0.01)
-        self.critic = layer_init(nn.Linear(128, 1), std=1)
+        self.nvec = nvec
+        self.actor = layer_init(nn.Linear(512, self.nvec.sum()), std=0.01)
+        self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_value(self, x):
         return self.critic(self.network(x))
@@ -84,7 +90,7 @@ def env_loop(env, config):
         logger.info(f"[ENV_LOOP]save path: {save_path}")
 
     # ===== agent & opt =====
-    agent = PPO(n_actions=env.action_space.nvec[0]).to(device)
+    agent = PPO(env.observation_space, env.action_space.nvec).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
     # automatically load the latest ckpt
