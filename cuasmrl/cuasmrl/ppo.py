@@ -58,7 +58,7 @@ def env_loop(envs, config):
     logger.info(f"[ENV_LOOP]device: {device}")
 
     # ===== log =====
-    log = bool(config.l)
+    log = bool(config.log)
     if log:
         # t = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         # file = config.fn.split(

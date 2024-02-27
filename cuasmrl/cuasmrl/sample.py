@@ -1,8 +1,10 @@
+import os
 from copy import deepcopy
-from abc import ABC, abstractmethod
 
-from cuasmrl.utils.constant import get_mutatable_ops
-from cuasmrl.utils.gpu_utils import get_gpu_cc
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops
+from cuasmrl.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Sample:
@@ -49,41 +51,6 @@ class Sample:
     def perf(self, value):
         self._perf = value
 
-    def get_mutable(self) -> list[int]:
-        # determine which lines are possible to mutate
-        # e.g. LDG, STG, and they should not cross the boundary of a label or
-        # LDGDEPBAR or BAR.SYNC or rw dependencies
-        lines = []
-        for i, line in enumerate(self.kernel_section):
-            line = line.strip()
-            # skip headers
-            if len(line) > 0 and line[0] == '[':
-                out = self.engine.decode(line)
-                ctrl_code, _, _, opcode, _, _ = out
-
-                # opcode is like: LDG.E.128.SYS
-                # i.e. {inst}.{modifier*}
-                memory_ops, ban_ops = get_mutatable_ops(get_gpu_cc())
-                ban = False
-                for op in ban_ops:
-                    if op in opcode:
-                        ban = True
-                        break
-                if ban:
-                    # print(f'ban {ctrl_code} {opcode}')
-                    continue
-
-                for op in memory_ops:
-                    if op in opcode:
-                        # print(f'mutable {ctrl_code} {opcode}')
-                        self.candidates.append(i)
-                        lines.append(line)
-                        break
-
-        # dimension of the optimization problem
-        self.dims = len(self.candidates)
-        return self.candidates
-
     def apply(self, index, action):
         lineno = self.candidates[index]
         if action == -1:
@@ -101,3 +68,54 @@ class Sample:
             pass
         else:
             assert False, f'invalid action: {action}'
+
+    def get_mutable(self) -> list[int]:
+        debug = False
+        if os.getenv("SIP_DEBUG", "0") == "1":
+            debug = True
+
+        memory_ops, ban_ops = get_mutatable_ops(get_gpu_cc())
+
+        # determine which lines are possible to mutate
+        # e.g. LDG, STG, and they should not cross the boundary of a label or
+        # LDGDEPBAR or BAR.SYNC or rw dependencies
+        # lines = []
+        cnt = 0
+        for i, line in enumerate(self.kernel_section):
+            line = line.strip()
+            # skip headers
+            if len(line) > 0 and line[0] == '[':
+                cnt += 1
+                out = self.engine.decode(line)
+                ctrl_code, _, predicate, opcode, dst, src = out
+                # opcode is like: LDG.E.128.SYS
+                # i.e. {inst}.{modifier*}
+                ban = False
+                for op in ban_ops:
+                    if op in opcode:
+                        ban = True
+                        break
+                if ban:
+                    if debug:
+                        logger.warning(f'ban {ctrl_code} {opcode}')
+                    continue
+
+                for op in memory_ops:
+                    if op in opcode:
+                        if debug:
+                            logger.info(f'mutable {ctrl_code} {opcode}')
+                        self.candidates.append(i)
+                        # lines.append(line)
+                        break
+
+        # dimension of the optimization problem
+        self.dims = len(self.candidates)
+        return self.dims, cnt
+
+    def embedding(self):
+        for i, line in enumerate(self.kernel_section):
+            line = line.strip()
+            # skip headers
+            if len(line) > 0 and line[0] == '[':
+                out = self.engine.decode(line)
+                ctrl_code, _, predicate, opcode, dst, src = out

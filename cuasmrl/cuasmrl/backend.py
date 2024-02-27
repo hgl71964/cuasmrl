@@ -4,6 +4,8 @@ import tempfile
 from copy import deepcopy
 from functools import lru_cache
 
+import numpy as np
+
 import gymnasium as gym
 from gymnasium.envs.registration import register
 from gymnasium.spaces import Box, MultiDiscrete, Discrete, Text
@@ -57,11 +59,16 @@ class Env(gym.Env):
 
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
-        sample.get_mutable()
+        dims, total = sample.get_mutable()
 
-        # n line, each line can move up or down
-        self.action_space = MultiDiscrete([sample.dims, 2])
-        self.observation_space = Box()
+        # n line, each line can move up or down; total number unchanged throughout
+        self.action_space = MultiDiscrete([dims, 2])
+
+        n_feat = 10  # FIXME
+        self.observation_space = Box(low=-1.0,
+                                     high=1.0,
+                                     shape=(total, n_feat),
+                                     dtype=np.float32)
 
     def reset(self, seed):
         self.sample = Sample(self.eng.kernel_section, self.eng)
