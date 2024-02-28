@@ -1,4 +1,5 @@
 import os
+import sys
 from dataclasses import asdict
 from typing import Optional
 import json
@@ -123,7 +124,7 @@ def env_loop(env, config):
             latest_ckpt = file
 
     if latest_ckpt is None:
-        start_iteration = 0
+        start_iteration = 1
     if latest_ckpt is not None:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
@@ -324,19 +325,25 @@ def env_loop(env, config):
                               global_step)
 
         if log:
-            # if info['status'] == Status.SEGFAULT: # if segfault definitinoly save?
+            if info['status'] == Status.SEGFAULT or iteration % config.ckpt_freq == 0:
+                torch.save(
+                    {
+                        'iteration': iteration,
+                        'model_state_dict': agent.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                    }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
 
-            torch.save(
-                {
-                    'iteration': iteration,
-                    'model_state_dict': agent.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
+        # we have to exit
+        if info['status'] == Status.SEGFAULT:
+            break
 
     # ===== STOP =====
     env.close()
     if log:
         writer.close()
+
+    if info['status'] == Status.SEGFAULT:
+        sys.exit(1)  # inform the driver to re-launch
 
 
 def inference(env, config):

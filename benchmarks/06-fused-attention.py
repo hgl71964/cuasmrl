@@ -43,6 +43,7 @@ class Config:
     horizon: Optional[int] = 32
     num_steps: int = 64
     normalize_reward: int = 0
+    ckpt_freq: int = 10
     ## Agent
     agent: str = "ppo"
     weights_path: Optional[str] = None
@@ -88,6 +89,7 @@ def parse_args() -> Config:
     parser.add_argument("--horizon", type=int)
     parser.add_argument("--num_steps", type=int, default=64)
     parser.add_argument("--normalize_reward", type=int, default=0)
+    parser.add_argument("--ckpt_freq", type=int, default=10)
 
     parser.add_argument("--agent", type=str, default="ppo")
     parser.add_argument("--weights_path", type=str)
