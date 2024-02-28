@@ -80,7 +80,7 @@ class Env(gym.Env):
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
 
-        init_perf = max([self.eng.get_init_perf() for _ in range(1)])
+        init_perf, _ = max([self.eng.get_init_perf() for _ in range(1)])
         self.init_perf = init_perf
         self.last_perf = init_perf
 
@@ -92,7 +92,7 @@ class Env(gym.Env):
         return state, {}
 
     def step(self, action):
-        index, direction = action
+        index, direction = action.flatten()
         self.sample.apply(index, direction)
 
         # run and test
@@ -115,6 +115,7 @@ class Env(gym.Env):
             # test failed
             info['status'] = Status.TESTFAIL
             reward = -1
+            terminated = True
         else:
             # valid
             info['status'] = Status.OK
@@ -333,12 +334,10 @@ class MutationEngine:
         else:
             ms = -1
 
-        total_flops = self.total_flops
-
-        if total_flops is not None:
-            tflops = total_flops / ms * 1e-9
+        if self.total_flops is not None:
+            tflops = self.total_flops / ms * 1e-9
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
-            return tflops
+            return tflops, cubin
 
         return -ms
 
@@ -382,9 +381,7 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                warmup = self.config['warmup']
-                rep = self.config['rep']
-                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
             except RuntimeError as run_err:
                 # likely a cuda error
                 logger.error(f'CUDA? Runtime Err: {run_err}')
@@ -396,10 +393,8 @@ class MutationEngine:
         else:
             ms = -1
 
-        total_flops = self.config.get('total_flops', None)
-
-        if total_flops is not None:
-            tflops = total_flops / ms * 1e-9
+        if self.total_flops is not None:
+            tflops = self.total_flops / ms * 1e-9
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops, cubin
 

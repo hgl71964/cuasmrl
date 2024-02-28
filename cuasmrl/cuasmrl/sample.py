@@ -58,7 +58,8 @@ class Sample:
 
     def apply(self, index, action):
         lineno = self.candidates[index]
-        if action == -1:
+        if action == 0:
+            # push down
             if lineno > 0:
                 self.kernel_section[lineno - 1], self.kernel_section[
                     lineno] = self.kernel_section[lineno], self.kernel_section[
@@ -71,8 +72,6 @@ class Sample:
                     1] = self.kernel_section[lineno +
                                              1], self.kernel_section[lineno]
             # self.candidates[index] += 1
-        elif action == 0:
-            pass
         else:
             assert False, f'invalid action: {action}'
 
@@ -149,7 +148,8 @@ class Sample:
 
         # unsqueeze the first dim;
         # so that it pre-appends `channel` dimension
-        # resulting shape: [C, H, W]
+        # resulting shape: [N, C, H, W]
+        embeds = np.expand_dims(embeds, axis=0)
         embeds = np.expand_dims(embeds, axis=0)
         return embeds
 

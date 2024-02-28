@@ -14,6 +14,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
 from cuasmrl.utils.logger import get_logger
+from cuasmrl.utils.constants import Status
 
 logger = get_logger(__name__)
 
@@ -41,7 +42,8 @@ class PPO(nn.Module):
             nn.ReLU(),
             layer_init(nn.Conv2d(64, 64, 3, stride=1)),
             nn.ReLU(),
-            nn.Flatten(0, -1),
+            # nn.Flatten(0, -1),
+            nn.Flatten(),  # [batch_size, whatever]
             layer_init(nn.Linear(64 * H3 * W3, 512)),
             nn.ReLU(),
         )
@@ -55,11 +57,20 @@ class PPO(nn.Module):
     def get_action_and_value(self, x, action=None):
         hidden = self.network(x)
         logits = self.actor(hidden)
-        probs = Categorical(logits=logits)
+        split_logits = torch.split(logits, self.nvec.tolist(), dim=1)
+        multi_categoricals = [
+            Categorical(logits=logits) for logits in split_logits
+        ]
         if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(
-            hidden)
+            action = torch.stack(
+                [categorical.sample() for categorical in multi_categoricals])
+        logprob = torch.stack([
+            categorical.log_prob(a)
+            for a, categorical in zip(action, multi_categoricals)
+        ])
+        entropy = torch.stack(
+            [categorical.entropy() for categorical in multi_categoricals])
+        return action.T, logprob.sum(0), entropy.sum(0), self.critic(hidden)
 
 
 def env_loop(env, config):
@@ -168,6 +179,15 @@ def env_loop(env, config):
             next_obs, next_done = torch.Tensor(next_obs).to(
                 device), torch.Tensor(next_done).to(device)
 
+            # handle error
+            if infos['status'] == Status.SEGFAULT:
+                # subsequent call will be error;
+                # save and relaunch
+                break
+            elif infos['status'] == Status.TESTFAIL:
+                pass
+
+            # FIXME single env
             if "final_info" in infos:
                 for info in infos["final_info"]:
                     if info and "episode" in info:
