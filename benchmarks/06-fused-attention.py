@@ -39,9 +39,9 @@ class Config:
     env_id: str = 'cuasmenv-v0'
     num_env: int = 1
     num_iterations: int = int(1e6)
-    batch_size: int = 8
-    h: int = 30
-    num_steps: int = 512
+    minibatch_size: int = 8
+    horizon: Optional[int] = 32
+    num_steps: int = 64
     normalize_reward: int = 0
     ## Agent
     agent: str = "ppo"
@@ -73,10 +73,10 @@ def parse_args() -> Config:
     parser.add_argument("--load", type=str)
     parser.add_argument("--bench", type=int, default=0)
 
-    parser.add_argument("--Z", type=int, default=1)
-    parser.add_argument("--H", type=int, default=4)
+    parser.add_argument("--Z", type=int, dest="Z", default=1)
+    parser.add_argument("--H", type=int, dest="H", default=4)
     parser.add_argument("--wl", type=int, default=16384)
-    parser.add_argument("--D_HEAD", type=int, default=64)
+    parser.add_argument("--dh", type=int, dest="D_HEAD", default=64)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -84,9 +84,9 @@ def parse_args() -> Config:
 
     parser.add_argument("--env_id", type=str, default='cuasmenv-v0')
     parser.add_argument("--num_iterations", type=int, default=int(1e6))
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--h", type=int, default=30)
-    parser.add_argument("--num_steps", type=int, default=512)
+    parser.add_argument("--minibatch_size", type=int, default=8)
+    parser.add_argument("--horizon", type=int)
+    parser.add_argument("--num_steps", type=int, default=64)
     parser.add_argument("--normalize_reward", type=int, default=0)
 
     parser.add_argument("--agent", type=str, default="ppo")
@@ -395,7 +395,7 @@ def main():
 
     # args
     config.total_flops = total_flops
-    config.save_dir = f'flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}'
+    config.save_dir = f'{GPU}/flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}'
 
     @fgk_autotune(
         configs=[

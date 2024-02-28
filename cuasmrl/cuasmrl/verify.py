@@ -143,11 +143,13 @@ def test_via_cubin(
     cubin,
     n_test_samples,
     test_batch_size=1,
+    verbose=True,
 ):
     # return True
     bin = fgk_CompiledKernel(so_path, metadata, asm)
 
     # use hint to generate test cases
+    # FIXME pre-gen test cases so avoid frequent-allocation
     if ret_ptr is not None:
         okss = []
         for _ in range(0, n_test_samples, test_batch_size):
@@ -189,10 +191,11 @@ def test_via_cubin(
 
         passes = sum(okss)
         total = len(okss)
-        if np.all(okss):
-            logger.info(f"✅ kernel verified for {total} test samples")
-        else:
-            logger.error(f"❌ kernel fail; only {passes}/{total} passes")
+        if verbose:
+            if np.all(okss):
+                logger.info(f"✅ kernel verified for {total} test samples")
+            else:
+                logger.error(f"❌ kernel fail; only {passes}/{total} passes")
 
         all_ok = np.all(okss)
         return all_ok

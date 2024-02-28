@@ -29,7 +29,7 @@ class PPO(nn.Module):
 
     def __init__(self, observation_space, nvec):
         super().__init__()
-        H, W = observation_space.shape
+        *_, H, W = observation_space.shape
 
         # after = (before + padding*2 - kernel_size//2) // stride
         H1, W1 = (H + 2 - 4) // 2, W
@@ -52,12 +52,18 @@ class PPO(nn.Module):
         self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_value(self, x):
+        if len(x.shape) == 3:
+            x = x.unsqueeze(0)  # add a batch dim
         return self.critic(self.network(x))
 
     def get_action_and_value(self, x, action=None):
+        if len(x.shape) == 3:
+            x = x.unsqueeze(0)  # add a batch dim
         hidden = self.network(x)
-        logits = self.actor(hidden)
+
+        logits = self.actor(hidden)  # [batch_size, nvec.sum()]
         split_logits = torch.split(logits, self.nvec.tolist(), dim=1)
+
         multi_categoricals = [
             Categorical(logits=logits) for logits in split_logits
         ]
@@ -117,24 +123,27 @@ def env_loop(env, config):
             latest_ckpt = file
 
     if latest_ckpt is None:
-        iteration = 0
+        start_iteration = 0
     if latest_ckpt is not None:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
         agent.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        iteration = ckpt['iteration'] + 1
+        start_iteration = ckpt['iteration'] + 1
 
-    logger.info(f'[ENV_LOOP] start training from iteration {iteration}')
+    logger.info(f'[ENV_LOOP] start training from iteration {start_iteration}')
 
     # ===== constants =====
+    batch_size = config.num_env * config.num_steps
     anneal_lr = bool(config.anneal_lr)
     norm_adv = bool(config.norm_adv)
     clip_vloss = bool(config.clip_vloss)
 
     # ===== START GAME =====
     # ALGO Logic: Storage setup
-    obs = torch.zeros((config.num_steps, config.num_env) +
+    # obs = torch.zeros((config.num_steps, config.num_env) +
+    #                   env.observation_space.shape).to(device)
+    obs = torch.zeros((config.num_steps, ) +
                       env.observation_space.shape).to(device)
     actions = torch.zeros(
         (config.num_steps, config.num_env) + env.action_space.shape,
@@ -151,7 +160,7 @@ def env_loop(env, config):
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(config.num_env).to(device)
 
-    for iteration in range(1, config.num_iterations + 1):
+    for iteration in range(start_iteration, config.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if anneal_lr:
             frac = 1.0 - (iteration - 1.0) / config.num_iterations
@@ -172,35 +181,34 @@ def env_loop(env, config):
             logprobs[step] = logprob
 
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, terminations, truncations, infos = env.step(
+            next_obs, reward, terminations, truncations, info = env.step(
                 action.cpu().numpy())
-            next_done = np.logical_or(terminations, truncations)
+            next_done_np: bool = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
-            next_obs, next_done = torch.Tensor(next_obs).to(
-                device), torch.Tensor(next_done).to(device)
+            next_obs = torch.Tensor(next_obs).to(device)
+            next_done = torch.Tensor([next_done_np]).to(device)
 
             # handle error
-            if infos['status'] == Status.SEGFAULT:
+            if info['status'] == Status.SEGFAULT:
                 # subsequent call will be error;
                 # save and relaunch
                 break
-            elif infos['status'] == Status.TESTFAIL:
-                pass
+            elif info['status'] == Status.TESTFAIL or next_done_np:
+                # in SyncVectorEnv, the env is automatically reset if done
+                # we try to do the same here
+                next_obs, _ = env.reset(seed=config.seed)
+                next_obs = torch.Tensor(next_obs).to(device)
+                next_done = torch.zeros(config.num_env).to(device)
 
-            # FIXME single env
-            if "final_info" in infos:
-                for info in infos["final_info"]:
-                    if info and "episode" in info:
-                        logger.info(
-                            f"global_step={global_step}, episodic_return={info['episode']['r']}"
-                        )
-                        if log:
-                            writer.add_scalar("charts/episodic_return",
-                                              info["episode"]["r"],
-                                              global_step)
-                            writer.add_scalar("charts/episodic_length",
-                                              info["episode"]["l"],
-                                              global_step)
+            if 'episode' in info:
+                logger.info(
+                    f"global_step={global_step}, episodic_return={info['episode']['r']}"
+                )
+                if log:
+                    writer.add_scalar("charts/episodic_return",
+                                      info["episode"]["r"], global_step)
+                    writer.add_scalar("charts/episodic_length",
+                                      info["episode"]["l"], global_step)
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -223,23 +231,23 @@ def env_loop(env, config):
         # flatten the batch
         b_obs = obs.reshape((-1, ) + env.observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
-        b_actions = actions.reshape((-1, ) + env.single_action_space.shape)
+        b_actions = actions.reshape((-1, ) + env.action_space.shape)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
 
         # Optimizing the policy and value network
-        b_inds = np.arange(config.batch_size)
+        b_inds = np.arange(batch_size)
         clipfracs = []
         for epoch in range(config.update_epochs):
             np.random.shuffle(b_inds)
-            for start in range(0, config.batch_size, config.minibatch_size):
+            for start in range(0, batch_size, config.minibatch_size):
                 end = start + config.minibatch_size
                 mb_inds = b_inds[start:end]
 
                 _, newlogprob, entropy, newvalue = agent.get_action_and_value(
                     b_obs[mb_inds],
-                    b_actions.long()[mb_inds])
+                    b_actions.long()[mb_inds].T)
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
@@ -316,6 +324,8 @@ def env_loop(env, config):
                               global_step)
 
         if log:
+            # if info['status'] == Status.SEGFAULT: # if segfault definitinoly save?
+
             torch.save(
                 {
                     'iteration': iteration,

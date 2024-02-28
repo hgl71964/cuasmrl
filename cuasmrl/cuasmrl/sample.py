@@ -122,7 +122,8 @@ class Sample:
 
     def embedding(self, space):
         self.candidates.clear()
-        embeds = np.zeros(space.shape, dtype=np.float32)
+        *_, H, W = space.shape
+        embeds = np.zeros((H, W), dtype=np.float32)
         cnt = 0
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
@@ -148,8 +149,7 @@ class Sample:
 
         # unsqueeze the first dim;
         # so that it pre-appends `channel` dimension
-        # resulting shape: [N, C, H, W]
-        embeds = np.expand_dims(embeds, axis=0)
+        # resulting shape: [1, 1, H, W]
         embeds = np.expand_dims(embeds, axis=0)
         return embeds
 

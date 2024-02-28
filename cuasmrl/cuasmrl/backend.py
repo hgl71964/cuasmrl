@@ -40,8 +40,8 @@ def make_env(
                        verbose=bool(config.verbose))
 
         # utility wrapper
-        if config.h is not None:
-            env = gym.wrappers.TimeLimit(env, max_episode_steps=config.h)
+        if config.horizon is not None:
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=config.horizon)
         if bool(config.normalize_reward):
             env = gym.wrappers.NormalizeReward(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
@@ -72,10 +72,11 @@ class Env(gym.Env):
 
         # see Sample.embedding() for state space design
         n_feat = 6
-        self.observation_space = Box(low=-10.0,
-                                     high=10.0,
-                                     shape=(total, n_feat),
-                                     dtype=np.float32)
+        self.observation_space = Box(
+            low=0.0,
+            high=16.0,  # max stall count == 16
+            shape=(1, total, n_feat),
+            dtype=np.float32)
 
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
@@ -99,7 +100,8 @@ class Env(gym.Env):
         perf, cubin = self.eng.get_perf(self.sample)
         test_ok = True
         if perf > 0:
-            if not self.eng.test_fn(cubin, self.n_tests, self.n_tests):
+            if not self.eng.test_fn(cubin, self.n_tests, self.n_tests,
+                                    self.verbose):
                 test_ok = False
 
         truncated = False
