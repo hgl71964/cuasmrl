@@ -104,15 +104,9 @@ def env_loop(env, config):
         config_json = json.dumps(config_dict, indent=4)
         with open(os.path.join(save_path, "drl_config.json"), "w") as file:
             file.write(config_json)
-        
-        # tensorboard
-        log_file = [f for f in os.listdir(save_path) if f.startswith('events')]
-        if len(log_file) == 1:
-            writer = SummaryWriter(os.path.join(save_path, log_file[0]))
-        elif len(log_file) == 0:
-            writer = SummaryWriter(save_path)
-        else:
-            raise RuntimeError(f"Too many log files: {log_file}")
+
+        # tensorboard (TensorBoard can visualize multiple files in the same log directory)
+        writer = SummaryWriter(save_path)
 
     # ===== agent & opt =====
     agent = PPO(env.observation_space, env.action_space.nvec).to(device)
