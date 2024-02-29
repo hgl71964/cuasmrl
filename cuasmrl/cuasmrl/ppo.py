@@ -125,21 +125,23 @@ def env_loop(env, config):
             logger.warning(f"Deleted {ckpt_file}")
 
     latest_ckpt = None
-    max_epoch = -1
+    max_iteration = -1
     for file in latest_5_ckpts:
-        epoch_num = int(file.strip('.pt').split('_')[-1])
-        if epoch_num > max_epoch:
-            max_epoch = epoch_num
+        iteration_num = int(file.strip('.pt').split('_')[-1])
+        if iteration_num > max_iteration:
+            max_iteration = iteration_num
             latest_ckpt = file
 
     if latest_ckpt is None:
         start_iteration = 1
+        global_step = 0
     else:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
         agent.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_iteration = ckpt['iteration'] + 1
+        global_step = ckpt['global_step']
 
     if start_iteration >= config.num_iterations:
         info = {'status': Status.OK}  # will skip the loop
@@ -167,7 +169,6 @@ def env_loop(env, config):
     values = torch.zeros((config.num_steps, config.num_env)).to(device)
 
     # TRY NOT TO MODIFY: start the game
-    global_step = 0
     start_time = time.time()
     next_obs, _ = env.reset(seed=config.seed)
     next_obs = torch.Tensor(next_obs).to(device)
@@ -342,6 +343,7 @@ def env_loop(env, config):
                 torch.save(
                     {
                         'iteration': iteration,
+                        'global_step': global_step,
                         'model_state_dict': agent.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
@@ -351,6 +353,7 @@ def env_loop(env, config):
                 torch.save(
                     {
                         'iteration': iteration,
+                        'global_step': global_step,
                         'model_state_dict': agent.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
