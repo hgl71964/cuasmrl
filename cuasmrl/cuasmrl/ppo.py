@@ -207,6 +207,13 @@ def env_loop(env, config):
                 # subsequent call will be error;
                 # save and relaunch
                 # TODO break will stitll train; should we exit here?
+
+                # NOTE: the Adam.step() will check CUDA stream,
+                # and causes an error when SEGFAULT
+                # we want to train in CPU since all tensors are in CPU
+                # so bypass the test
+                # hopefully this leads to training and then exit this process
+                torch.backends.cuda.is_built = lambda: False
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
                 # in SyncVectorEnv, the env is automatically reset if done
