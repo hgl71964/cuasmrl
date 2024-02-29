@@ -105,32 +105,41 @@ def env_loop(env, config):
         with open(os.path.join(save_path, "drl_config.json"), "w") as file:
             file.write(config_json)
 
-        logger.info(f"[ENV_LOOP]save path: {save_path}")
-
     # ===== agent & opt =====
     agent = PPO(env.observation_space, env.action_space.nvec).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
-    # automatically load the latest ckpt
+    # automatically load the latest ckpt and clean up
     ckpt_files = [f for f in os.listdir(save_path) if f.endswith('.pt')]
+    sorted_ckpt_files = sorted(
+        ckpt_files,
+        key=lambda x: int(x.strip('.pt').split('_')[-1]),
+        reverse=True)
+    latest_5_ckpts = sorted_ckpt_files[:5]
+    for ckpt_file in ckpt_files:
+        if ckpt_file not in latest_5_ckpts:
+            os.remove(os.path.join(save_path, ckpt_file))
+            logger.warning(f"Deleted {ckpt_file}")
+
     latest_ckpt = None
     max_epoch = -1
-    for file in ckpt_files:
-        epoch_num = file.strip('.pt').split('_')[-1]
-        logger.critical('xxxx', file, epoch_num)
-        epoch_num = int(epoch_num)
+    for file in latest_5_ckpts:
+        epoch_num = int(file.strip('.pt').split('_')[-1])
         if epoch_num > max_epoch:
             max_epoch = epoch_num
             latest_ckpt = file
 
     if latest_ckpt is None:
         start_iteration = 1
-    if latest_ckpt is not None:
+    else:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
         agent.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_iteration = ckpt['iteration'] + 1
+
+    if start_iteration >= config.num_iterations:
+        info = {'status': Status.OK}  # will skip the loop
 
     logger.info(f'[ENV_LOOP] start training from iteration {start_iteration}')
 

@@ -93,35 +93,4 @@ def run_drl(
     )()
 
     # ===== run =====
-    _t1 = time.perf_counter()
-    best_solution, best_perf = env_loop(env, config)
-
-    _t2 = time.perf_counter()
-    hours = (_t2 - _t1) / 3600
-
-    final_perf = best_perf
-    _ = eng.assemble(
-        best_solution
-    )  # if illegal memory access, this gives error, but cubin is valid
-
-    logger.info(
-        f'Performance: {final_perf:.2f}; init perf: {init_perf:.2f}; Search time: {hours:.2f}h'
-    )
-    logger.info(
-        f'improvement: {(final_perf - init_perf) / init_perf * 100:.2f}%')
-
-    # ===== save =====
-    path = save_data(
-        bin,
-        final_perf,
-        init_perf,
-        hours,
-        args,
-        sig_key,
-        non_constexpr_arg_values,
-        config.seed,
-        config.save_suffix,
-        config.save_dir,
-        algo='ppo',
-    )
-    return path
+    env_loop(env, config)

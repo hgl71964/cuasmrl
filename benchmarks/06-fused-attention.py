@@ -553,7 +553,7 @@ def main():
         load_dir = config.load
     fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd,
                            load_dir)
-    tri_out = triton_attn_forward(q, k, v, o, causal, sm_scale,
+    tri_out = triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale,
                                   _attn_fwd_triton)
 
     ## TEST

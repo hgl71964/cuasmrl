@@ -1,3 +1,4 @@
+import sys
 from collections import defaultdict, namedtuple
 
 from triton.runtime.jit import T, JITFunction, KernelArg, get_current_device, set_current_device, get_cuda_stream
@@ -240,6 +241,7 @@ class ASMJITFunction(JITFunction):
                     # others
                     self.drl_config,  # <- init by the autotuner
                 )
+                sys.exit(0)  # signal that training is ok
             else:
                 bin = run_selection(
                     so_path,
