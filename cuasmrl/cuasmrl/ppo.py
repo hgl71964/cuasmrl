@@ -97,7 +97,6 @@ def env_loop(env, config):
         #     run_name += f"__{config.annotation}"
         # run_name += f"__{t}"
         # save_path = f"{config.default_out_path}/runs/{run_name}"
-        writer = SummaryWriter(save_path)
         # https://github.com/abseil/abseil-py/issues/57
 
         config_dict = asdict(config)
@@ -105,11 +104,19 @@ def env_loop(env, config):
         with open(os.path.join(save_path, "drl_config.json"), "w") as file:
             file.write(config_json)
 
+        log_file = [f for f in os.listdir(save_path) if f.startswith('events')]
+        if len(log_file) == 1:
+            writer = SummaryWriter(os.path.join(save_path, log_file[0]))
+        elif len(log_file) == 0:
+            writer = SummaryWriter(save_path)
+        else:
+            raise RuntimeError(f"Too many log files: {log_file}")
+
     # ===== agent & opt =====
     agent = PPO(env.observation_space, env.action_space.nvec).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
-    # automatically load the latest ckpt and clean up
+    # load the latest ckpt and clean up
     ckpt_files = [f for f in os.listdir(save_path) if f.endswith('.pt')]
     sorted_ckpt_files = sorted(
         ckpt_files,

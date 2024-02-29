@@ -81,6 +81,7 @@ def main():
             print(f"{kernel} finished successfully.")
         else:
             print(f"{kernel} exited with code {return_code}, restarting...")
+            print(result.stderr)
             time.sleep(3)
 
 if __name__ == "__main__":
