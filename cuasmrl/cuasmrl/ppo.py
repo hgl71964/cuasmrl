@@ -99,11 +99,13 @@ def env_loop(env, config):
         # save_path = f"{config.default_out_path}/runs/{run_name}"
         # https://github.com/abseil/abseil-py/issues/57
 
+        # config
         config_dict = asdict(config)
         config_json = json.dumps(config_dict, indent=4)
         with open(os.path.join(save_path, "drl_config.json"), "w") as file:
             file.write(config_json)
-
+        
+        # tensorboard
         log_file = [f for f in os.listdir(save_path) if f.startswith('events')]
         if len(log_file) == 1:
             writer = SummaryWriter(os.path.join(save_path, log_file[0]))
