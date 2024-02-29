@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 def gen_test_samples(
-    bin,
+    kernel,
     non_constexpr_arg_values,
     grid_0,
     grid_1,
@@ -44,22 +44,22 @@ def gen_test_samples(
             test_list.append(arg)
 
         # call
-        bin.c_wrapper(
+        kernel.c_wrapper(
             grid_0,
             grid_1,
             grid_2,
-            bin.num_warps,
-            bin.num_ctas,
-            bin.clusterDims[0],
-            bin.clusterDims[1],
-            bin.clusterDims[2],
-            bin.shared,
+            kernel.num_warps,
+            kernel.num_ctas,
+            kernel.clusterDims[0],
+            kernel.clusterDims[1],
+            kernel.clusterDims[2],
+            kernel.shared,
             stream,
-            bin.cu_function,
+            kernel.cu_function,
             launch_enter_hook,
             launch_exit_hook,
-            bin,
-            *bin.assemble_tensormap_to_arg(test_list),
+            kernel,
+            *kernel.assemble_tensormap_to_arg(test_list),
         )
         test_samples.append(test_list)
 
@@ -67,7 +67,7 @@ def gen_test_samples(
 
 
 def e2e_test(
-    bin,
+    kernel,
     grid_0,
     grid_1,
     grid_2,
@@ -92,22 +92,22 @@ def e2e_test(
 
             test_list.append(arg)
 
-        bin.c_wrapper(
+        kernel.c_wrapper(
             grid_0,
             grid_1,
             grid_2,
-            bin.num_warps,
-            bin.num_ctas,
-            bin.clusterDims[0],
-            bin.clusterDims[1],
-            bin.clusterDims[2],
-            bin.shared,
+            kernel.num_warps,
+            kernel.num_ctas,
+            kernel.clusterDims[0],
+            kernel.clusterDims[1],
+            kernel.clusterDims[2],
+            kernel.shared,
             stream,
-            bin.cu_function,
+            kernel.cu_function,
             launch_enter_hook,
             launch_exit_hook,
-            bin,
-            *bin.assemble_tensormap_to_arg(test_list),
+            kernel,
+            *kernel.assemble_tensormap_to_arg(test_list),
         )
 
         # TODO: atm we only consider one output from kernel
@@ -130,8 +130,7 @@ def test_via_cubin(
     sig_key,
     non_constexpr_arg_values,
     ret_ptr,
-    test_inputs,
-    test_outputs,
+    static_test_samples,
 
     # kernel args
     grid_0,
@@ -145,16 +144,45 @@ def test_via_cubin(
     test_batch_size=1,
     verbose=True,
 ):
-    # return True
-    bin = fgk_CompiledKernel(so_path, metadata, asm)
+    if static_test_samples is not None:
+        okss = []
+        opt_asm = {
+            'cubin': cubin,
+        }
+        opt_kernel = fgk_CompiledKernel(so_path, metadata, opt_asm)
 
-    # use hint to generate test cases
-    # FIXME pre-gen test cases so avoid frequent-allocation
-    if ret_ptr is not None:
+        oks = e2e_test(
+            opt_kernel,
+            grid_0,
+            grid_1,
+            grid_2,
+            stream,
+            enter_hook,
+            exit_hook,
+            ret_ptr,
+            test_samples,
+        )
+        okss.extend(oks)
+        torch.cuda.empty_cache()  # free test memory for one test
+
+        passes = sum(okss)
+        total = len(okss)
+        if verbose:
+            if np.all(okss):
+                logger.info(f"✅ kernel verified for {total} test samples")
+            else:
+                logger.error(f"❌ kernel fail; only {passes}/{total} passes")
+
+        all_ok = np.all(okss)
+        return all_ok
+
+    elif ret_ptr is not None:
+        # use hint to generate test cases dynamically
+        kernel = fgk_CompiledKernel(so_path, metadata, asm)
         okss = []
         for _ in range(0, n_test_samples, test_batch_size):
             test_samples = gen_test_samples(
-                bin,
+                kernel,
                 non_constexpr_arg_values,
                 grid_0,
                 grid_1,
@@ -169,10 +197,10 @@ def test_via_cubin(
             opt_asm = {
                 'cubin': cubin,
             }
-            opt_bin = fgk_CompiledKernel(so_path, metadata, opt_asm)
+            opt_kernel = fgk_CompiledKernel(so_path, metadata, opt_asm)
 
             oks = e2e_test(
-                opt_bin,
+                opt_kernel,
                 grid_0,
                 grid_1,
                 grid_2,

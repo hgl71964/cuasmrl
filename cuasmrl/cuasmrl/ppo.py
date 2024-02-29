@@ -205,6 +205,7 @@ def env_loop(env, config):
             if info['status'] == Status.SEGFAULT:
                 # subsequent call will be error;
                 # save and relaunch
+                # TODO break will stitll train; should we exit here?
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
                 # in SyncVectorEnv, the env is automatically reset if done
@@ -337,13 +338,23 @@ def env_loop(env, config):
                               global_step)
 
         if log:
-            if info['status'] == Status.SEGFAULT or iteration % config.ckpt_freq == 0:
+            if info['status'] == Status.SEGFAULT:
                 torch.save(
                     {
                         'iteration': iteration,
                         'model_state_dict': agent.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
+                logger.warning(
+                    f'save {config.agent} at {iteration} for segfault')
+            elif iteration % config.ckpt_freq == 0:
+                torch.save(
+                    {
+                        'iteration': iteration,
+                        'model_state_dict': agent.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                    }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
+                logger.info(f'save {config.agent} at {iteration}')
 
         # we have to exit
         if info['status'] == Status.SEGFAULT:

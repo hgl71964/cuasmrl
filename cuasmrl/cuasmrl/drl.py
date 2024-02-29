@@ -17,7 +17,7 @@ from cuasmrl.backend import make_env, MutationEngine
 from cuasmrl.ppo import env_loop
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.record import save_data, read_data
-from cuasmrl.verify import test_via_cubin
+from cuasmrl.verify import test_via_cubin, gen_test_samples
 
 logger = get_logger(__name__)
 
@@ -67,6 +67,7 @@ def run_drl(
         config.total_flops,
     )
 
+    # TODO gen static test samples
     test_fn = partial(
         test_via_cubin,
         so_path,
@@ -77,7 +78,8 @@ def run_drl(
         non_constexpr_arg_values,
         ret_ptr,
         None,
-        None,
+
+        #
         grid_0,
         grid_1,
         grid_2,

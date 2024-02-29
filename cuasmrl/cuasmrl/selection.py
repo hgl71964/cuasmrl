@@ -124,8 +124,7 @@ def run_selection(
                     sig_key,
                     non_constexpr_arg_values,
                     ret_ptr,
-                    test_inputs,
-                    test_outputs,
+                    None,  # static test samples
 
                     # kernel args
                     grid_0,
