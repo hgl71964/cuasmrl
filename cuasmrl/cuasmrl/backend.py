@@ -280,12 +280,17 @@ class MutationEngine:
         ctrl_code = ctrl_code.split(':')
         assert len(ctrl_code) == 5, f'invalid ctrl code: {ctrl_code}'
 
-        barr = ctrl_code[0]
+        barr = ctrl_code[0][2:]
+        waits = []
+        for bar in barr:
+            if bar != '-':
+                waits.append(int(bar))
+
         read = ctrl_code[1]
         write = ctrl_code[2]
         yield_flag = ctrl_code[3]
         stall_count = ctrl_code[4]
-        return barr, read, write, yield_flag, stall_count
+        return waits, read, write, yield_flag, stall_count
 
     def update_cubin(self, cubin):
         self.bin.asm['cubin'] = cubin

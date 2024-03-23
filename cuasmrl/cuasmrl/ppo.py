@@ -380,6 +380,7 @@ def env_loop(env, config):
 
 
 def inference(env, config):
+    # TODO
     device = torch.device(
         "cuda" if torch.cuda.is_available() and bool(config.gpu) else "cpu")
     logger.info(f"device: {device}")

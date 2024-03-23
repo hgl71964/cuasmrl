@@ -122,6 +122,7 @@ class Sample:
 
     def embedding(self, space):
         self.candidates.clear()
+        masks = []
         *_, H, W = space.shape
         embeds = np.zeros((H, W), dtype=np.float32)
         cnt = 0
@@ -144,17 +145,30 @@ class Sample:
 
                 embeds[cnt] = np.array(embed, dtype=np.float32)
                 cnt += 1
+
+                # only memory ops are considered mutable candidates
                 if op_embed[0] == 1:
                     self.candidates.append(i)
+                    # TODO check bound of kernel_section?
+                    prev_line = self.kernel_section[i - 1].strip()
+                    post_line = self.kernel_section[i + 1].strip()
+                    mask = self._generate_mask(
+                        ctrl_code,
+                        dst,
+                        src,
+                        prev_line,
+                        post_line,
+                    )
+                    masks.append(mask)
 
         # unsqueeze the first dim;
         # so that it pre-appends `channel` dimension
         # resulting shape: [1, 1, H, W]
         embeds = np.expand_dims(embeds, axis=0)
-        return embeds
+        return embeds, masks
 
     def embed_ctrl_code(self, ctrl_code):
-        _, read, write, yield_flag, stall_count = self.engine.decode_ctrl_code(
+        _, r, w, yield_flag, stall_count = self.engine.decode_ctrl_code(
             ctrl_code)
         yield_flag = 1 if yield_flag == 'Y' else 0
         stall_count = int(stall_count[1:-1])
@@ -190,3 +204,37 @@ class Sample:
 
     def embed_src(self, src):
         return [len(src)]
+
+    def _generate_mask(self, ctrl_code, dst, src, prev_line, post_line):
+        mask = [1, 1]  # repr valid to move up and down
+        waits, r, w, *_ = self.engine.decode_ctrl_code(ctrl_code)
+        r = -1 if r[1] == '-' else int(r[1])
+        w = -1 if w[1] == '-' else int(w[1])
+
+        out = self.engine.decode(prev_line)
+        p_ctrl_code, _, _, _, p_dest, p_src = out
+        # skip labels
+        if p_ctrl_code is not None:
+            # read-after-write
+            if p_dest in src:
+                mask[0] = 0
+            # scoreboard
+            _, p_r, p_w, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
+            p_r = -1 if p_r[1] == '-' else int(p_r[1])
+            p_w = -1 if p_w[1] == '-' else int(p_w[1])
+            if p_r in waits or p_w in waits:
+                mask[0] = 0
+
+        out = self.engine.decode(post_line)
+        p_ctrl_code, _, _, _, p_dest, p_src = out
+        # skip labels
+        if p_ctrl_code is not None:
+            # next line read-after-write
+            if dst in p_src:
+                mask[1] = 0
+            # scoreboard
+            p_wait, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
+            if r in p_wait or w in p_wait:
+                mask[1] = 0
+
+        return mask

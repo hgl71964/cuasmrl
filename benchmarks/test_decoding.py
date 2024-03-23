@@ -95,12 +95,17 @@ def decode_ctrl_code(ctrl_code: str):
     ctrl_code = ctrl_code.split(':')
     assert len(ctrl_code) == 5, f'invalid ctrl code: {ctrl_code}'
 
-    barr = ctrl_code[0]
+    barr = ctrl_code[0][2:]
+    waits = []
+    for bar in barr:
+        if bar != '-':
+            waits.append(int(bar))
+
     read = ctrl_code[1]
     write = ctrl_code[2]
     yield_flag = ctrl_code[3]
     stall_count = ctrl_code[4]
-    return barr, read, write, yield_flag, stall_count
+    return waits, read, write, yield_flag, stall_count
 
 def main():
 
@@ -113,7 +118,9 @@ def main():
             ctrl_code, comment, predicate, opcode, dest, src = decode(line)
 
             print(ctrl_code)
-            print(decode_ctrl_code(ctrl_code))
+            if ctrl_code is not None:
+                # skip label
+                print(decode_ctrl_code(ctrl_code))
             print(predicate)
             print(opcode)
             print(dest)
