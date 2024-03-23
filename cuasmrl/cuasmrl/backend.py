@@ -89,8 +89,8 @@ class Env(gym.Env):
         if init_perf < 0:
             raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
-        state = self._build_state()
-        return state, {}
+        state, masks = self._build_state()
+        return state, {'masks': masks}
 
     def step(self, action):
         index, direction = action.flatten()
@@ -124,7 +124,8 @@ class Env(gym.Env):
             reward = (self.last_perf - perf) / self.init_perf
 
         # update
-        state = self._build_state()
+        state, masks = self._build_state()
+        info['masks'] = masks
         self.last_perf = perf
 
         return state, reward, terminated, truncated, info

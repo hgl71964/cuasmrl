@@ -20,6 +20,30 @@ from cuasmrl.utils.constants import Status
 logger = get_logger(__name__)
 
 
+class CategoricalMasked(Categorical):
+
+    def __init__(self, probs=None, logits=None, validate_args=None, masks=[]):
+        self.device = torch.device("cpu")
+        self.masks = masks
+        if len(self.masks) == 0:
+            super(CategoricalMasked, self).__init__(probs, logits,
+                                                    validate_args)
+        else:
+            self.masks = masks.type(torch.BoolTensor).to(self.device)
+            logits = torch.where(self.masks, logits,
+                                 torch.tensor(-1e8).to(self.device))
+            super(CategoricalMasked, self).__init__(probs, logits,
+                                                    validate_args)
+
+    def entropy(self):
+        if len(self.masks) == 0:
+            return super(CategoricalMasked, self).entropy()
+        p_log_p = self.logits * self.probs
+        p_log_p = torch.where(self.masks, p_log_p,
+                              torch.tensor(0.0).to(self.device))
+        return -p_log_p.sum(-1)
+
+
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
@@ -57,16 +81,19 @@ class PPO(nn.Module):
             x = x.unsqueeze(0)  # add a batch dim
         return self.critic(self.network(x))
 
-    def get_action_and_value(self, x, action=None):
+    def get_action_and_value(self, x, action_masks, action=None):
         if len(x.shape) == 3:
             x = x.unsqueeze(0)  # add a batch dim
         hidden = self.network(x)
 
         logits = self.actor(hidden)  # [batch_size, nvec.sum()]
         split_logits = torch.split(logits, self.nvec.tolist(), dim=1)
-
+        split_action_masks = torch.split(action_masks,
+                                         self.nvec.tolist(),
+                                         dim=1)
         multi_categoricals = [
-            Categorical(logits=logits) for logits in split_logits
+            CategoricalMasked(logits=logits, masks=iam)
+            for (logits, iam) in zip(split_logits, split_action_masks)
         ]
         if action is None:
             action = torch.stack(
@@ -167,10 +194,12 @@ def env_loop(env, config):
     rewards = torch.zeros((config.num_steps, config.num_env)).to(device)
     dones = torch.zeros((config.num_steps, config.num_env)).to(device)
     values = torch.zeros((config.num_steps, config.num_env)).to(device)
+    action_masks = torch.zeros((config.num_steps, config.num_env) +
+                               (env.action_space.nvec.sum(), )).to(device)
 
     # TRY NOT TO MODIFY: start the game
     start_time = time.time()
-    next_obs, _ = env.reset(seed=config.seed)
+    next_obs, info = env.reset(seed=config.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(config.num_env).to(device)
 
@@ -185,11 +214,14 @@ def env_loop(env, config):
             global_step += config.num_env
             obs[step] = next_obs
             dones[step] = next_done
+            action_masks[step] = torch.Tensor(info['masks'])
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(
-                    next_obs)
+                    next_obs,
+                    action_masks[step],
+                )
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -257,6 +289,7 @@ def env_loop(env, config):
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
+        b_action_masks = action_masks.reshape((-1, action_masks.shape[-1]))
 
         # Optimizing the policy and value network
         b_inds = np.arange(batch_size)
@@ -268,7 +301,7 @@ def env_loop(env, config):
                 mb_inds = b_inds[start:end]
 
                 _, newlogprob, entropy, newvalue = agent.get_action_and_value(
-                    b_obs[mb_inds],
+                    b_obs[mb_inds], b_action_masks[mb_inds],
                     b_actions.long()[mb_inds].T)
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
