@@ -8,7 +8,7 @@ def parse_args():
 
     parser.add_argument("--default_out_path", type=str, default="data")
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--n_tests", type=int, default=5)
+    parser.add_argument("--n_tests", type=int, default=10)
     parser.add_argument("--load", type=str)
     parser.add_argument("--bench", type=int, default=0)
 
@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--target_kl", type=float)
     parser.add_argument("--gpu", type=int, default=0)
     args = parser.parse_args()
-    return args 
+    return args
 
 def construct_command_line_args(args):
     args_dict = vars(args)
