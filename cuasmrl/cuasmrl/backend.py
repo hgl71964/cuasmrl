@@ -128,6 +128,8 @@ class Env(gym.Env):
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
+                logger.error(f'{self.sample.kernel_section[lineno-5]}')
+                logger.error(f'{self.sample.kernel_section[lineno-4]}')
                 logger.error(f'{self.sample.kernel_section[lineno-3]}')
                 logger.error(f'{self.sample.kernel_section[lineno-2]}')
                 logger.error(f'{self.sample.kernel_section[lineno]}')
@@ -137,6 +139,8 @@ class Env(gym.Env):
                 logger.error(f'{self.sample.kernel_section[lineno+1]}')
                 logger.error(f'{self.sample.kernel_section[lineno+2]}')
                 logger.error(f'{self.sample.kernel_section[lineno+3]}')
+                logger.error(f'{self.sample.kernel_section[lineno+4]}')
+                logger.error(f'{self.sample.kernel_section[lineno+5]}')
             else:
                 logger.error(f'{self.sample.kernel_section[lineno+1]}')
                 logger.error(f'{self.sample.kernel_section[lineno]}')
