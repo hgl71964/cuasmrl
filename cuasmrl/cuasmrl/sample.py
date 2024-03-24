@@ -213,8 +213,10 @@ class Sample:
 
         out = self.engine.decode(prev_line)
         p_ctrl_code, _, _, _, p_dest, p_src = out
-        # skip labels
-        if p_ctrl_code is not None:
+        if p_ctrl_code is None:
+            # NOT move across labels
+            mask[0] = 0
+        else:
             # read-after-write
             if p_dest in src:
                 mask[0] = 0
@@ -227,8 +229,10 @@ class Sample:
 
         out = self.engine.decode(post_line)
         p_ctrl_code, _, _, _, p_dest, p_src = out
-        # skip labels
-        if p_ctrl_code is not None:
+        if p_ctrl_code is None:
+            # NOT move across labels
+            mask[1] = 0
+        else:
             # next line read-after-write
             if dst in p_src:
                 mask[1] = 0

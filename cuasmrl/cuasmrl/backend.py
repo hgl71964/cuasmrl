@@ -115,6 +115,13 @@ class Env(gym.Env):
             # segfault
             info['status'] = Status.SEGFAULT
             reward = -1
+
+            # trace segfault
+            lineno = self.sample.candidates[index]
+            logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
+            logger.error(f'{self.sample.kernel_section[lineno-1]}')
+            logger.error(f'{self.sample.kernel_section[lineno]}')
+            logger.error(f'{self.sample.kernel_section[lineno+1]}')
         elif not test_ok:
             # test failed
             info['status'] = Status.TESTFAIL
