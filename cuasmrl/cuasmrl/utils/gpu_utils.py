@@ -13,9 +13,9 @@ MUTATABLE_OPS = {
         ['LDGDEPBAR', 'DEPBAR'],  # ban_ops
     ),
     (8, 0): (
-        # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDG', 'STG'],  # memory_ops
-        ['LDGDEPBAR', 'DEPBAR'],  # ban_ops
+        ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
+        # ['LDG', 'STG'],  # memory_ops
+        ['LDGDEPBAR', 'DEPBAR', 'LDGSTS'],  # ban_ops
     ),
     (7, 5): (
         ['LDG', 'LDS', 'LDSM'],  # memory_ops
