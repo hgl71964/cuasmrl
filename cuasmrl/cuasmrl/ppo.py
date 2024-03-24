@@ -418,6 +418,7 @@ def env_loop(env, config):
                         'optimizer_state_dict': optimizer.state_dict(),
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
                 logger.info(f'save {config.agent} at {iteration}')
+                # TODO probably need to del ckpt if we have trained for a long time
 
         # we have to exit
         if info['status'] == Status.SEGFAULT:

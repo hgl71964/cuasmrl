@@ -102,9 +102,16 @@ class Env(gym.Env):
         perf, cubin = self.eng.get_perf(self.sample)
         test_ok = True
         if perf > 0:
-            if not self.eng.test_fn(cubin, self.n_tests, self.n_tests,
-                                    self.verbose):
-                test_ok = False
+            # if not self.eng.test_fn(cubin, self.n_tests, self.n_tests,
+            #                         self.verbose):
+            #     test_ok = False
+            try:
+                ok = self.eng.test_fn(cubin, self.n_tests, self.n_tests,
+                                      self.verbose)
+                test_ok = ok
+            except:
+                # segfault from test_fn
+                perf = -1
 
         truncated = False
         terminated = False
@@ -119,9 +126,17 @@ class Env(gym.Env):
             # trace segfault
             lineno = self.sample.candidates[index]
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
-            logger.error(f'{self.sample.kernel_section[lineno-1]}')
-            logger.error(f'{self.sample.kernel_section[lineno]}')
-            logger.error(f'{self.sample.kernel_section[lineno+1]}')
+            if direction == 0:
+                # it was pushed up
+                logger.error(f'{self.sample.kernel_section[lineno]}')
+                logger.error(f'{self.sample.kernel_section[lineno-1]}')
+
+                logger.error(f'{self.sample.kernel_section[lineno+1]}')
+                logger.error(f'{self.sample.kernel_section[lineno+2]}')
+                logger.error(f'{self.sample.kernel_section[lineno+3]}')
+            else:
+                logger.error(f'{self.sample.kernel_section[lineno+1]}')
+                logger.error(f'{self.sample.kernel_section[lineno]}')
         elif not test_ok:
             # test failed
             info['status'] = Status.TESTFAIL
