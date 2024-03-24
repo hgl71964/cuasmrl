@@ -68,7 +68,8 @@ class Env(gym.Env):
         logger.info(f'[INIT] dims: {dims}; total: {total};')
 
         # n line, each line can move up or down; total number unchanged throughout
-        self.action_space = MultiDiscrete([dims, 2])
+        # self.action_space = MultiDiscrete([dims, 2])
+        self.action_space = Discrete(n=dims * 2)  # flatten multiDsiscrete
 
         # see Sample.embedding() for state space design
         n_feat = 6
@@ -93,7 +94,8 @@ class Env(gym.Env):
         return state, {'masks': masks}
 
     def step(self, action):
-        index, direction = action.flatten()
+        action = action.flatten()[0]
+        index, direction = action // 2, action % 2
         self.sample.apply(index, direction)
 
         # run and test

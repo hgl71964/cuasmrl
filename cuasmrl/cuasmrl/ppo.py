@@ -52,7 +52,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 class PPO(nn.Module):
 
-    def __init__(self, observation_space, nvec):
+    def __init__(self, observation_space, action_space):
         super().__init__()
         *_, H, W = observation_space.shape
 
@@ -72,39 +72,55 @@ class PPO(nn.Module):
             layer_init(nn.Linear(64 * H3 * W3, 512)),
             nn.ReLU(),
         )
-        self.nvec = nvec
-        self.actor = layer_init(nn.Linear(512, self.nvec.sum()), std=0.01)
+        # multiDiscrete
+        # self.nvec = nvec
+        # self.actor = layer_init(nn.Linear(512, self.nvec.sum()), std=0.01)
+        # self.critic = layer_init(nn.Linear(512, 1), std=1)
+
+        # Discrete (flattened)
+        self.actor = layer_init(nn.Linear(512, action_space.n), std=0.01)
         self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_value(self, x):
         if len(x.shape) == 3:
-            x = x.unsqueeze(0)  # add a batch dim
+            x = x.unsqueeze(0)
         return self.critic(self.network(x))
 
     def get_action_and_value(self, x, action_masks, action=None):
         if len(x.shape) == 3:
-            x = x.unsqueeze(0)  # add a batch dim
+            # add a batch dim when inference
+            x = x.unsqueeze(0)
         hidden = self.network(x)
 
-        logits = self.actor(hidden)  # [batch_size, nvec.sum()]
-        split_logits = torch.split(logits, self.nvec.tolist(), dim=1)
-        split_action_masks = torch.split(action_masks,
-                                         self.nvec.tolist(),
-                                         dim=1)
-        multi_categoricals = [
-            CategoricalMasked(logits=logits, masks=iam)
-            for (logits, iam) in zip(split_logits, split_action_masks)
-        ]
+        logits = self.actor(hidden)  # [batch_size, n]
+
+        categorical = CategoricalMasked(logits=logits, masks=action_masks)
+
         if action is None:
-            action = torch.stack(
-                [categorical.sample() for categorical in multi_categoricals])
-        logprob = torch.stack([
-            categorical.log_prob(a)
-            for a, categorical in zip(action, multi_categoricals)
-        ])
-        entropy = torch.stack(
-            [categorical.entropy() for categorical in multi_categoricals])
-        return action.T, logprob.sum(0), entropy.sum(0), self.critic(hidden)
+            action = categorical.sample()
+        logprob = categorical.log_prob(action)
+        entropy = categorical.entropy()
+
+        # XXX: mask has inter=dependencies; might as well just flatten action space...
+        # split_logits = torch.split(logits, self.nvec.tolist(), dim=1)
+        # split_action_masks = torch.split(action_masks,
+        #                                  self.nvec.tolist(),
+        #                                  dim=1)
+        # multi_categoricals = [
+        #     CategoricalMasked(logits=logits, masks=action_masks)
+        #     for (logits, iam) in zip([logits], split_action_masks)
+        # ]
+        # if action is None:
+        # action = torch.stack(
+        #     [categorical.sample() for categorical in multi_categoricals])
+        # logprob = torch.stack([
+        #     categorical.log_prob(a)
+        #     for a, categorical in zip(action, multi_categoricals)
+        # ])
+        # entropy = torch.stack(
+        #     [categorical.entropy() for categorical in multi_categoricals])
+        # return action.T, logprob.sum(0), entropy.sum(0), self.critic(hidden)
+        return action, logprob, entropy, self.critic(hidden)
 
 
 def env_loop(env, config):
@@ -136,7 +152,7 @@ def env_loop(env, config):
         writer = SummaryWriter(save_path)
 
     # ===== agent & opt =====
-    agent = PPO(env.observation_space, env.action_space.nvec).to(device)
+    agent = PPO(env.observation_space, env.action_space).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=config.lr, eps=1e-5)
 
     # load the latest ckpt and clean up
@@ -194,8 +210,9 @@ def env_loop(env, config):
     rewards = torch.zeros((config.num_steps, config.num_env)).to(device)
     dones = torch.zeros((config.num_steps, config.num_env)).to(device)
     values = torch.zeros((config.num_steps, config.num_env)).to(device)
-    action_masks = torch.zeros((config.num_steps, config.num_env) +
-                               (env.action_space.nvec.sum(), )).to(device)
+    action_masks = torch.zeros(
+        (config.num_steps, config.num_env, env.action_space.n),
+        dtype=torch.int32).to(device)
 
     # TRY NOT TO MODIFY: start the game
     start_time = time.time()
@@ -214,7 +231,8 @@ def env_loop(env, config):
             global_step += config.num_env
             obs[step] = next_obs
             dones[step] = next_done
-            action_masks[step] = torch.Tensor(info['masks'])
+            action_masks[step] = torch.tensor(info['masks'],
+                                              dtype=torch.int32).flatten()
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
@@ -301,8 +319,10 @@ def env_loop(env, config):
                 mb_inds = b_inds[start:end]
 
                 _, newlogprob, entropy, newvalue = agent.get_action_and_value(
-                    b_obs[mb_inds], b_action_masks[mb_inds],
-                    b_actions.long()[mb_inds].T)
+                    b_obs[mb_inds],
+                    b_action_masks[mb_inds],
+                    b_actions[mb_inds],
+                )
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
