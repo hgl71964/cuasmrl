@@ -72,9 +72,9 @@ class Env(gym.Env):
         self.action_space = Discrete(n=dims * 2)  # flatten multiDsiscrete
 
         # see Sample.embedding() for state space design
-        n_feat = 6
+        n_feat = 10 + 1 + 1 + 1 + 1
         self.observation_space = Box(
-            low=0.0,
+            low=-1.0,
             high=16.0,  # max stall count == 16
             shape=(1, total, n_feat),
             dtype=np.float32)
@@ -147,6 +147,7 @@ class Env(gym.Env):
         elif not test_ok:
             # test failed
             info['status'] = Status.TESTFAIL
+            logger.critical(f'Test failed')
             reward = -1
             terminated = True
         else:
@@ -305,6 +306,24 @@ class MutationEngine:
 
             if line[i] != '':
                 src.append(line[i].strip(','))
+
+        # post-process dest; e.g. [R219+0x4000] -> R219
+        if dest is not None:
+            dest = dest.strip(']').strip('[')
+            dest = dest.split('+')[0]
+
+        # post-process src; e.g. ['desc[UR16][R10.64] -> UR16, R10
+        processed_src = []
+        for i, word in enumerate(src):
+            if word.startswith('desc'):
+                w = word.replace(']', '').split('[')
+                for r in w[1:]:
+                    tmp = r.split('.')[0]  # R10.64 -> R10
+                    processed_src.append(tmp)
+            else:
+                tmp = word.strip(']').strip('[')
+                tmp = tmp.split('.')[0]  # R10.64 -> R10
+                processed_src.append(tmp)
 
         return ctrl_code, comment, predicate, opcode, dest, src
 

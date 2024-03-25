@@ -150,14 +150,12 @@ class Sample:
                 if op_embed[0] == 1:
                     self.candidates.append(i)
                     # TODO check bound of kernel_section?
-                    prev_line = self.kernel_section[i - 1].strip()
-                    post_line = self.kernel_section[i + 1].strip()
                     mask = self._generate_mask(
                         ctrl_code,
                         dst,
                         src,
-                        prev_line,
-                        post_line,
+                        self.kernel_section,
+                        i,
                     )
                     masks.append(mask)
 
@@ -168,11 +166,21 @@ class Sample:
         return embeds, masks
 
     def embed_ctrl_code(self, ctrl_code):
-        _, r, w, yield_flag, stall_count = self.engine.decode_ctrl_code(
+        waits, r, w, yield_flag, stall_count = self.engine.decode_ctrl_code(
             ctrl_code)
+
+        barr = []
+        for i in range(6):
+            if i in waits:
+                barr.append(i)
+            else:
+                barr.append(-1)
+        r = -1 if r[1] == '-' else int(r[1])
+        w = -1 if w[1] == '-' else int(w[1])
+
         yield_flag = 1 if yield_flag == 'Y' else 0
         stall_count = int(stall_count[1:-1])
-        return [yield_flag, stall_count]
+        return barr + [r, w, yield_flag, stall_count]
 
     def embed_predicate(self, predicate):
         if predicate is None:
@@ -205,7 +213,10 @@ class Sample:
     def embed_src(self, src):
         return [len(src)]
 
-    def _generate_mask(self, ctrl_code, dst, src, prev_line, post_line):
+    def _generate_mask(self, ctrl_code, dst, src, kernel_section, index):
+        prev_line = kernel_section[index - 1].strip()
+        post_line = kernel_section[index + 1].strip()
+
         mask = [1, 1]  # repr valid to move up and down
         waits, r, w, *_ = self.engine.decode_ctrl_code(ctrl_code)
         r = -1 if r[1] == '-' else int(r[1])

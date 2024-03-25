@@ -88,8 +88,26 @@ def decode(line: str):
 
         if line[i] != '':
             src.append(line[i].strip(','))
+    
+    # post-process dest; e.g. [R219+0x4000] -> R219
+    if dest is not None:
+        dest = dest.strip(']').strip('[')
+        dest = dest.split('+')[0]
+    
+    # post-process src; e.g. ['desc[UR16][R10.64] -> UR16, R10
+    processed_src = []
+    for i, word in enumerate(src):
+        if word.startswith('desc'):
+            w = word.replace(']', '').split('[')
+            for r in w[1:]: 
+                tmp = r.split('.')[0]  # R10.64 -> R10
+                processed_src.append(tmp)
+        else:
+            tmp = word.strip(']').strip('[')
+            tmp = tmp.split('.')[0]  # R10.64 -> R10
+            processed_src.append(tmp)
 
-    return ctrl_code, comment, predicate, opcode, dest, src
+    return ctrl_code, comment, predicate, opcode, dest, processed_src
 
 def decode_ctrl_code(ctrl_code: str):
     ctrl_code = ctrl_code.split(':')
@@ -117,6 +135,8 @@ def main():
 
             ctrl_code, comment, predicate, opcode, dest, src = decode(line)
 
+            print('line is ', line)
+            print('decoding: ')
             print(ctrl_code)
             if ctrl_code is not None:
                 # skip label
@@ -127,7 +147,7 @@ def main():
             print(src)
             print()
 
-            if i > 5:
+            if i > 20:
                 break
 
 if __name__ == "__main__":
