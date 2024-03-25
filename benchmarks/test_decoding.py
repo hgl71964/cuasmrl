@@ -92,6 +92,7 @@ def decode(line: str):
     # post-process dest; e.g. [R219+0x4000] -> R219
     if dest is not None:
         dest = dest.strip(']').strip('[')
+        dest = dest.split('.')[0]
         dest = dest.split('+')[0]
     
     # post-process src; e.g. ['desc[UR16][R10.64] -> UR16, R10
@@ -105,6 +106,7 @@ def decode(line: str):
         else:
             tmp = word.strip(']').strip('[')
             tmp = tmp.split('.')[0]  # R10.64 -> R10
+            tmp = tmp.split('+')[0]  # R10+0x2000 -> R10
             processed_src.append(tmp)
 
     return ctrl_code, comment, predicate, opcode, dest, processed_src

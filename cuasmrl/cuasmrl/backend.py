@@ -142,14 +142,56 @@ class Env(gym.Env):
                 logger.error(f'{self.sample.kernel_section[lineno+4]}')
                 logger.error(f'{self.sample.kernel_section[lineno+5]}')
             else:
-                logger.error(f'{self.sample.kernel_section[lineno+1]}')
+                logger.error(f'{self.sample.kernel_section[lineno-4]}')
+                logger.error(f'{self.sample.kernel_section[lineno-3]}')
+                logger.error(f'{self.sample.kernel_section[lineno-2]}')
+                logger.error(f'{self.sample.kernel_section[lineno-1]}')
+
+                logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.error(f'{self.sample.kernel_section[lineno]}')
+
+                logger.error(f'{self.sample.kernel_section[lineno+2]}')
+                logger.error(f'{self.sample.kernel_section[lineno+3]}')
+                logger.error(f'{self.sample.kernel_section[lineno+4]}')
+                logger.error(f'{self.sample.kernel_section[lineno+5]}')
         elif not test_ok:
             # test failed
             info['status'] = Status.TESTFAIL
-            logger.critical(f'Test failed')
             reward = -1
             terminated = True
+
+            # trace error
+            lineno = self.sample.candidates[index]
+            logger.error(f'TESTFAIL: {index}, {lineno}; {direction}')
+            if direction == 0:
+                # it was pushed up
+                logger.error(f'{self.sample.kernel_section[lineno-5]}')
+                logger.error(f'{self.sample.kernel_section[lineno-4]}')
+                logger.error(f'{self.sample.kernel_section[lineno-3]}')
+                logger.error(f'{self.sample.kernel_section[lineno-2]}')
+                logger.error(f'{self.sample.kernel_section[lineno]}')
+
+                logger.critical(f'{self.sample.kernel_section[lineno-1]}')
+
+                logger.error(f'{self.sample.kernel_section[lineno+1]}')
+                logger.error(f'{self.sample.kernel_section[lineno+2]}')
+                logger.error(f'{self.sample.kernel_section[lineno+3]}')
+                logger.error(f'{self.sample.kernel_section[lineno+4]}')
+                logger.error(f'{self.sample.kernel_section[lineno+5]}')
+            else:
+                logger.error(f'{self.sample.kernel_section[lineno-4]}')
+                logger.error(f'{self.sample.kernel_section[lineno-3]}')
+                logger.error(f'{self.sample.kernel_section[lineno-2]}')
+                logger.error(f'{self.sample.kernel_section[lineno-1]}')
+
+                logger.critical(f'{self.sample.kernel_section[lineno+1]}')
+                logger.error(f'{self.sample.kernel_section[lineno]}')
+
+                logger.error(f'{self.sample.kernel_section[lineno+2]}')
+                logger.error(f'{self.sample.kernel_section[lineno+3]}')
+                logger.error(f'{self.sample.kernel_section[lineno+4]}')
+                logger.error(f'{self.sample.kernel_section[lineno+5]}')
+
         else:
             # valid
             info['status'] = Status.OK
@@ -310,6 +352,7 @@ class MutationEngine:
         # post-process dest; e.g. [R219+0x4000] -> R219
         if dest is not None:
             dest = dest.strip(']').strip('[')
+            dest = dest.split('.')[0]
             dest = dest.split('+')[0]
 
         # post-process src; e.g. ['desc[UR16][R10.64] -> UR16, R10
@@ -323,6 +366,7 @@ class MutationEngine:
             else:
                 tmp = word.strip(']').strip('[')
                 tmp = tmp.split('.')[0]  # R10.64 -> R10
+                tmp = tmp.split('+')[0]  # R10+0x2000 -> R10
                 processed_src.append(tmp)
 
         return ctrl_code, comment, predicate, opcode, dest, src
