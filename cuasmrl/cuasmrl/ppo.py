@@ -233,7 +233,7 @@ def env_loop(env, config):
             dones[step] = next_done
             action_masks[step] = torch.tensor(info['masks'],
                                               dtype=torch.int32).flatten()
-            # logger.info(f'effective dim: {action_masks[step].sum()}')
+            logger.info(f'effective dim: {action_masks[step].sum()}')
 
             # ALGO LOGIC: action logic
             with torch.no_grad():

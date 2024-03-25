@@ -32,6 +32,18 @@ def get_mutatable_ops(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
+def get_min_stall_count(cc, opcode):
+    if cc == (7, 5):
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+    elif cc == (8, 0):
+        if opcode.startswith('LDGSTS'):
+            return 10
+        else:
+            return 5
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
 def get_gpu_name():
     try:
         output = subprocess.check_output(

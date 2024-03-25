@@ -4,11 +4,11 @@ from copy import deepcopy
 import numpy as np
 import torch
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count
 from cuasmrl.utils.logger import get_logger
 
-MEMORY_OPS, BAN_OPS = get_mutatable_ops(get_gpu_cc())
-MIN_STALL_COUNT = 5
+CC = get_gpu_cc()
+MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
 
 logger = get_logger(__name__)
 
@@ -162,6 +162,7 @@ class Sample:
                     # TODO check bound of kernel_section?
                     mask = self._generate_mask(
                         ctrl_code,
+                        opcode,
                         dst,
                         src,
                         self.kernel_section,
@@ -223,7 +224,15 @@ class Sample:
     def embed_src(self, src):
         return [len(src)]
 
-    def _generate_mask(self, ctrl_code, dst, src, kernel_section, lineno):
+    def _generate_mask(
+        self,
+        ctrl_code,
+        opcode,
+        dst,
+        src,
+        kernel_section,
+        lineno,
+    ):
         prev_line = kernel_section[lineno - 1].strip()
         post_line = kernel_section[lineno + 1].strip()
 
@@ -260,38 +269,37 @@ class Sample:
             # stall count
             ## for inst
             total = int(stall_count[1:-1])
-            for i in range(1, 5):
+            for i in range(1, 9):
                 tmp_ctrl, *_, _, tmp_src = self.engine.decode(
                     kernel_section[lineno + i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
-                    break
+                    continue
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
-                if p_dest in tmp_src:
-                    if total <= MIN_STALL_COUNT:
-                        mask[0] = 0
-                        break
+                if p_dest in tmp_src and total <= get_min_stall_count(
+                        CC, p_opcode):
+                    mask[0] = 0
+                    break
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
             ## for MemOp
             total = 0
-            for i in range(2, 6):
+            for i in range(2, 10):
                 tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
-                    break
+                    continue
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
-                if tmp_dst in src:
-                    if total <= MIN_STALL_COUNT:
-                        mask[0] = 0
-                        break
+                if tmp_dst in src and total <= get_min_stall_count(CC, opcode):
+                    mask[0] = 0
+                    break
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -317,22 +325,22 @@ class Sample:
 
             # stall count
             total = 0
-            # move up to 5 lines to check stall counts
-            for i in range(1, 5):
+            # move up several lines to check stall counts
+            for i in range(1, 9):
                 tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
-                    break
+                    continue
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
                 # the stall count between assign and uses must >= MIN_STALL_COUNT (could be architecture-dependent)
-                if tmp_dst in p_src:
-                    if total <= MIN_STALL_COUNT:
-                        mask[1] = 0
-                        break
+                if tmp_dst in p_src and total <= get_min_stall_count(
+                        CC, p_opcode):
+                    mask[1] = 0
+                    break
 
         return mask
