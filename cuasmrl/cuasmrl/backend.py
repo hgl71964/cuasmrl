@@ -128,7 +128,7 @@ class Env(gym.Env):
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(2, 7):
+                for i in range(6, 1, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
@@ -137,7 +137,7 @@ class Env(gym.Env):
                 for i in range(1, 6):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(1, 6):
+                for i in range(5, 0, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
@@ -344,6 +344,8 @@ class MutationEngine:
                 for r in w[1:]:
                     tmp = r.split('.')[0]  # R10.64 -> R10
                     processed_src.append(tmp)
+            elif word.startswith('c'):
+                processed_src.append(word)
             else:
                 tmp = word.strip(']').strip('[')
                 tmp = tmp.split('.')[0]  # R10.64 -> R10

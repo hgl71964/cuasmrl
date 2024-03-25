@@ -62,12 +62,21 @@ class Sample:
         if action == 0:
             # push down
             if lineno > 0:
+
+                # print(self.kernel_section[lineno - 1])
+                # print(self.kernel_section[lineno])
+
                 self.kernel_section[lineno - 1], self.kernel_section[
                     lineno] = self.kernel_section[lineno], self.kernel_section[
                         lineno - 1]
+
             # self.candidates[index] -= 1
         elif action == 1:
             if lineno < len(self.kernel_section) - 1:
+
+                # print(self.kernel_section[lineno])
+                # print(self.kernel_section[lineno+1])
+
                 self.kernel_section[lineno], self.kernel_section[
                     lineno +
                     1] = self.kernel_section[lineno +
@@ -249,6 +258,7 @@ class Sample:
                 mask[0] = 0
 
             # stall count
+            ## for inst
             total = int(stall_count[1:-1])
             for i in range(1, 5):
                 tmp_ctrl, *_, _, tmp_src = self.engine.decode(
@@ -261,9 +271,27 @@ class Sample:
                 if p_dest in tmp_src:
                     if total <= MIN_STALL_COUNT:
                         mask[0] = 0
+                        break
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
+
+            ## for MemOp
+            total = 0
+            for i in range(2, 6):
+                tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
+                    kernel_section[lineno - i].strip())
+                if tmp_ctrl is None:
+                    # if it is a label, don't care stall count
+                    break
+                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+                stall_count = int(stall_count[1:-1])
+                total += stall_count
+
+                if tmp_dst in src:
+                    if total <= MIN_STALL_COUNT:
+                        mask[0] = 0
+                        break
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -305,5 +333,6 @@ class Sample:
                 if tmp_dst in p_src:
                     if total <= MIN_STALL_COUNT:
                         mask[1] = 0
+                        break
 
         return mask

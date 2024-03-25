@@ -103,6 +103,8 @@ def decode(line: str):
             for r in w[1:]: 
                 tmp = r.split('.')[0]  # R10.64 -> R10
                 processed_src.append(tmp)
+        elif word.startswith('c'):
+            processed_src.append(word)
         else:
             tmp = word.strip(']').strip('[')
             tmp = tmp.split('.')[0]  # R10.64 -> R10
