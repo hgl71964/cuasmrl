@@ -67,7 +67,7 @@ class Env(gym.Env):
         dims, total = sample.get_mutable()
         logger.info(f'[INIT] dims: {dims}; total: {total};')
 
-        # n line, each line can move up or down; total number unchanged throughout
+        # n line, each line can move up or down; total number unchanged throughout rollouts
         # self.action_space = MultiDiscrete([dims, 2])
         self.action_space = Discrete(n=dims * 2)  # flatten multiDsiscrete
 
@@ -102,13 +102,13 @@ class Env(gym.Env):
         perf, cubin = self.eng.get_perf(self.sample)
         test_ok = True
         if perf > 0:
-            # if not self.eng.test_fn(cubin, self.n_tests, self.n_tests,
-            #                         self.verbose):
-            #     test_ok = False
             try:
-                ok = self.eng.test_fn(cubin, self.n_tests, self.n_tests,
-                                      self.verbose)
-                test_ok = ok
+                test_ok = self.eng.test_fn(
+                    cubin,
+                    self.n_tests,
+                    self.n_tests,
+                    self.verbose,
+                )
             except:
                 # segfault from test_fn
                 perf = -1
@@ -156,22 +156,22 @@ class Env(gym.Env):
             logger.error(f'TESTFAIL: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(2, 7):
+                for i in range(2, 15):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
                 logger.critical(f'{self.sample.kernel_section[lineno-1]}')
 
-                for i in range(1, 6):
+                for i in range(1, 15):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(1, 6):
+                for i in range(1, 15):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
 
-                for i in range(2, 7):
+                for i in range(2, 15):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
         else:
             # valid

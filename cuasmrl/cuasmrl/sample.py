@@ -266,11 +266,14 @@ class Sample:
             if p_r in waits or p_w in waits:
                 mask[0] = 0
 
-            # stall count
+            #  stall count
             ## for inst
             total = int(stall_count[1:-1])
             for i in range(1, 9):
-                tmp_ctrl, *_, _, tmp_src = self.engine.decode(
+                if mask[0] == 0:
+                    break
+
+                tmp_ctrl, *_, tmp_opcode, _, tmp_src = self.engine.decode(
                     kernel_section[lineno + i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
@@ -278,9 +281,10 @@ class Sample:
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 if p_dest in tmp_src and total <= get_min_stall_count(
-                        CC, p_opcode):
+                        CC,
+                        tmp_opcode,
+                ):
                     mask[0] = 0
-                    break
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
@@ -288,6 +292,9 @@ class Sample:
             ## for MemOp
             total = 0
             for i in range(2, 10):
+                if mask[0] == 0:
+                    break
+
                 tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
@@ -299,7 +306,6 @@ class Sample:
 
                 if tmp_dst in src and total <= get_min_stall_count(CC, opcode):
                     mask[0] = 0
-                    break
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -327,6 +333,9 @@ class Sample:
             total = 0
             # move up several lines to check stall counts
             for i in range(1, 9):
+                if mask[1] == 0:
+                    break
+
                 tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
@@ -341,6 +350,5 @@ class Sample:
                 if tmp_dst in p_src and total <= get_min_stall_count(
                         CC, p_opcode):
                     mask[1] = 0
-                    break
 
         return mask
