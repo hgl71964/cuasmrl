@@ -128,7 +128,7 @@ class Env(gym.Env):
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(2, 6):
+                for i in range(2, 7):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
@@ -137,13 +137,13 @@ class Env(gym.Env):
                 for i in range(1, 6):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(1, 5):
+                for i in range(1, 6):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
 
-                for i in range(2, 6):
+                for i in range(2, 7):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
         elif not test_ok:
             # test failed
@@ -156,7 +156,7 @@ class Env(gym.Env):
             logger.error(f'TESTFAIL: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(2, 6):
+                for i in range(2, 7):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
@@ -165,13 +165,13 @@ class Env(gym.Env):
                 for i in range(1, 6):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(1, 5):
+                for i in range(1, 6):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
 
-                for i in range(2, 6):
+                for i in range(2, 7):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
         else:
             # valid

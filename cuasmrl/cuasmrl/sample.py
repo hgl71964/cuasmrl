@@ -258,12 +258,12 @@ class Sample:
                     break
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
-                stall_count = int(stall_count[1:-1])
-                total += stall_count
-
                 if p_dest in tmp_src:
                     if total <= MIN_STALL_COUNT:
                         mask[0] = 0
+
+                stall_count = int(stall_count[1:-1])
+                total += stall_count
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
