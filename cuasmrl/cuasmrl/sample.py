@@ -8,6 +8,7 @@ from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops
 from cuasmrl.utils.logger import get_logger
 
 MEMORY_OPS, BAN_OPS = get_mutatable_ops(get_gpu_cc())
+MIN_STALL_COUNT = 5
 
 logger = get_logger(__name__)
 
@@ -126,7 +127,7 @@ class Sample:
         *_, H, W = space.shape
         embeds = np.zeros((H, W), dtype=np.float32)
         cnt = 0
-        for i, line in enumerate(self.kernel_section):
+        for lineno, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
             if len(line) > 0 and line[0] == '[':
@@ -148,14 +149,14 @@ class Sample:
 
                 # only memory ops are considered mutable candidates
                 if op_embed[0] == 1:
-                    self.candidates.append(i)
+                    self.candidates.append(lineno)
                     # TODO check bound of kernel_section?
                     mask = self._generate_mask(
                         ctrl_code,
                         dst,
                         src,
                         self.kernel_section,
-                        i,
+                        lineno,
                     )
                     masks.append(mask)
 
@@ -213,43 +214,96 @@ class Sample:
     def embed_src(self, src):
         return [len(src)]
 
-    def _generate_mask(self, ctrl_code, dst, src, kernel_section, index):
-        prev_line = kernel_section[index - 1].strip()
-        post_line = kernel_section[index + 1].strip()
+    def _generate_mask(self, ctrl_code, dst, src, kernel_section, lineno):
+        prev_line = kernel_section[lineno - 1].strip()
+        post_line = kernel_section[lineno + 1].strip()
 
         mask = [1, 1]  # repr valid to move up and down
-        waits, r, w, *_ = self.engine.decode_ctrl_code(ctrl_code)
+        waits, r, w, _, _ = self.engine.decode_ctrl_code(ctrl_code)
         r = -1 if r[1] == '-' else int(r[1])
         w = -1 if w[1] == '-' else int(w[1])
 
-        out = self.engine.decode(prev_line)
-        p_ctrl_code, _, _, _, p_dest, p_src = out
+        # if MemOp were to move up
+        p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
+            prev_line)
         if p_ctrl_code is None:
             # NOT move across labels
             mask[0] = 0
         else:
-            # read-after-write
+            # direct dependencies
             if p_dest in src:
                 mask[0] = 0
+            if dst in p_src:
+                mask[0] = 0
+
+            # ban ops
+            if p_opcode in BAN_OPS:
+                mask[0] = 0
+
             # scoreboard
-            _, p_r, p_w, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
+            _, p_r, p_w, _, stall_count = self.engine.decode_ctrl_code(
+                p_ctrl_code)
             p_r = -1 if p_r[1] == '-' else int(p_r[1])
             p_w = -1 if p_w[1] == '-' else int(p_w[1])
             if p_r in waits or p_w in waits:
                 mask[0] = 0
 
-        out = self.engine.decode(post_line)
-        p_ctrl_code, _, _, _, p_dest, p_src = out
+            # stall count
+            total = int(stall_count[1:-1])
+            for i in range(1, 5):
+                tmp_ctrl, *_, _, tmp_src = self.engine.decode(
+                    kernel_section[lineno + i].strip())
+                if tmp_ctrl is None:
+                    # if it is a label, don't care stall count
+                    break
+                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+
+                stall_count = int(stall_count[1:-1])
+                total += stall_count
+
+                if p_dest in tmp_src:
+                    if total <= MIN_STALL_COUNT:
+                        mask[0] = 0
+
+        # if MemOp were to move down
+        p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
+            post_line)
         if p_ctrl_code is None:
             # NOT move across labels
             mask[1] = 0
         else:
-            # next line read-after-write
+            # direct dependencies
             if dst in p_src:
                 mask[1] = 0
+            if p_dest in src:
+                mask[1] = 0
+
+            # ban ops
+            if p_opcode in BAN_OPS:
+                mask[1] = 0
+
             # scoreboard
             p_wait, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
             if r in p_wait or w in p_wait:
                 mask[1] = 0
+
+            # stall count
+            total = 0
+            # move up to 5 lines to check stall counts
+            for i in range(1, 5):
+                tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
+                    kernel_section[lineno - i].strip())
+                if tmp_ctrl is None:
+                    # if it is a label, don't care stall count
+                    break
+                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+
+                stall_count = int(stall_count[1:-1])
+                total += stall_count
+
+                # the stall count between assign and uses must >= MIN_STALL_COUNT (could be architecture-dependent)
+                if tmp_dst in p_src:
+                    if total <= MIN_STALL_COUNT:
+                        mask[1] = 0
 
         return mask
