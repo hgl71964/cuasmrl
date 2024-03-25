@@ -128,22 +128,22 @@ class Env(gym.Env):
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(6, 1, -1):
+                for i in range(10, 1, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
                 logger.critical(f'{self.sample.kernel_section[lineno-1]}')
 
-                for i in range(1, 6):
+                for i in range(1, 10):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(5, 0, -1):
+                for i in range(10, 0, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
 
-                for i in range(2, 7):
+                for i in range(2, 10):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
         elif not test_ok:
             # test failed
@@ -352,7 +352,7 @@ class MutationEngine:
                 tmp = tmp.split('+')[0]  # R10+0x2000 -> R10
                 processed_src.append(tmp)
 
-        return ctrl_code, comment, predicate, opcode, dest, src
+        return ctrl_code, comment, predicate, opcode, dest, processed_src
 
     def decode_ctrl_code(self, ctrl_code: str):
         ctrl_code = ctrl_code.split(':')
