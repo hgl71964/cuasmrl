@@ -94,7 +94,9 @@ class Sample:
         # e.g. LDG, STG, and they should not cross the boundary of a label or
         # LDGDEPBAR or BAR.SYNC or rw dependencies
         # lines = []
-        cnt = 0
+        kernel_lineno_cnt = 0
+        mem_loc = {}
+        max_src_len = 0
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
             # skip headers
@@ -105,9 +107,18 @@ class Sample:
                     # a label
                     continue
 
-                cnt += 1
-                # opcode is like: LDG.E.128.SYS
-                # i.e. {inst}.{modifier*}
+                kernel_lineno_cnt += 1
+
+                # integeralize memory location
+                if dst not in mem_loc:
+                    mem_loc[dst] = len(mem_loc)
+                for s in src:
+                    if s not in mem_loc:
+                        mem_loc[s] = len(mem_loc)
+                max_src_len = max(max_src_len, len(src))
+
+                # determine if MemOp;
+                # opcode is like: LDG.E.128.SYS; i.e. {inst}.{modifier*}
                 ban = False
                 for op in BAN_OPS:
                     if op in opcode:
@@ -128,9 +139,9 @@ class Sample:
 
         # dimension of the optimization problem
         self.dims = len(self.candidates)
-        return self.dims, cnt
+        return self.dims, kernel_lineno_cnt, mem_loc, max_src_len
 
-    def embedding(self, space):
+    def embedding(self, space, mem_loc, max_src_len):
         self.candidates.clear()
         masks = []
         *_, H, W = space.shape
@@ -150,8 +161,8 @@ class Sample:
                 embed = self.embed_ctrl_code(ctrl_code) + \
                         self.embed_predicate(predicate) + \
                         op_embed + \
-                        self.embed_dst(dst) + \
-                        self.embed_src(src)
+                        self.embed_dst(dst, mem_loc) + \
+                        self.embed_src(src, mem_loc, max_src_len)
 
                 embeds[cnt] = np.array(embed, dtype=np.float32)
                 cnt += 1
@@ -215,14 +226,33 @@ class Sample:
                     break
         return [memory_op]
 
-    def embed_dst(self, dst):
-        # TODO pre scan to build a database of memory loc; then integerize?
+    def embed_dst(self, dst, mem_loc):
         if dst is None:
-            return [0]
-        return [1]
+            return [-1]
 
-    def embed_src(self, src):
-        return [len(src)]
+        # debug
+        if dst not in mem_loc:
+            for k, _ in mem_loc.items():
+                print(k)
+            raise RuntimeError(f'unknown memory location: {dst}')
+
+        return [mem_loc[dst]]
+
+    def embed_src(self, src, mem_loc, max_src_len):
+
+        # debug
+        for s in src:
+            if s not in mem_loc:
+                for k, _ in mem_loc.items():
+                    print(k)
+                raise RuntimeError(f'unknown memory location: {s}')
+
+        # build
+        embedding = [mem_loc[s] for s in src]
+        diff = max_src_len - len(embedding)
+        padding = [-1] * diff
+
+        return embedding + padding
 
     def _generate_mask(
         self,

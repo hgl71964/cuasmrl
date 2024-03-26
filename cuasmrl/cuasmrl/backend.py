@@ -64,18 +64,22 @@ class Env(gym.Env):
 
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
-        dims, total = sample.get_mutable()
-        logger.info(f'[INIT] dims: {dims}; total: {total};')
+        dims, total, mem_loc, max_src_len = sample.get_mutable()
+        logger.info(
+            f'[INIT] dims: {dims}; total kernel lineno: {total}; mem_loc: {len(mem_loc)}; max_src_len: {max_src_len};'
+        )
+        self.mem_loc = mem_loc
+        self.max_src_len = max_src_len  # because src is variable
 
         # n line, each line can move up or down; total number unchanged throughout rollouts
         # self.action_space = MultiDiscrete([dims, 2])
         self.action_space = Discrete(n=dims * 2)  # flatten multiDsiscrete
 
-        # see Sample.embedding() for state space design
-        n_feat = 10 + 1 + 1 + 1 + 1
+        # NOTE: see Sample.embedding() for state space design
+        n_feat = 10 + 1 + 1 + 1 + max_src_len
         self.observation_space = Box(
             low=-1.0,
-            high=16.0,  # max stall count == 16
+            high=max(16.0, len(mem_loc)),  # max stall count 16
             shape=(1, total, n_feat),
             dtype=np.float32)
 
@@ -186,7 +190,8 @@ class Env(gym.Env):
         return state, reward, terminated, truncated, info
 
     def _build_state(self):
-        return self.sample.embedding(self.observation_space)
+        return self.sample.embedding(self.observation_space, self.mem_loc,
+                                     self.max_src_len)
 
 
 class MutationEngine:

@@ -419,7 +419,21 @@ def env_loop(env, config):
                         'optimizer_state_dict': optimizer.state_dict(),
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
                 logger.info(f'save {config.agent} at {iteration}')
-                # TODO probably need to del ckpt if we have trained for a long time
+
+                # clean-up
+                time.sleep(1)
+                ckpt_files = [
+                    f for f in os.listdir(save_path) if f.endswith('.pt')
+                ]
+                sorted_ckpt_files = sorted(
+                    ckpt_files,
+                    key=lambda x: int(x.strip('.pt').split('_')[-1]),
+                    reverse=True)
+                latest_5_ckpts = sorted_ckpt_files[:5]
+                for ckpt_file in ckpt_files:
+                    if ckpt_file not in latest_5_ckpts:
+                        os.remove(os.path.join(save_path, ckpt_file))
+                        logger.warning(f"Deleted {ckpt_file}")
 
         # we have to exit
         if info['status'] == Status.SEGFAULT:
