@@ -81,10 +81,17 @@ def decode(line: str):
             src.append(line[i].strip(','))
     
     # post-process dest; e.g. [R219+0x4000] -> R219
+    processed_dst = None
     if dest is not None:
-        dest = dest.strip(']').strip('[')
-        dest = dest.split('.')[0]
-        dest = dest.split('+')[0]
+        if dest.startswith('desc'):
+            tmp = dest.replace(']', '').split('[')
+            tmp = tmp[-1]  # take last register
+            processed_dst = tmp.split('.')[0]
+        else:
+            dest = dest.strip(']').strip('[')
+            dest = dest.split('.')[0]
+            dest = dest.split('+')[0]
+            processed_dst = dest
     
     # post-process src; e.g. ['desc[UR16][R10.64] -> UR16, R10
     processed_src = []
@@ -102,7 +109,7 @@ def decode(line: str):
             tmp = tmp.split('+')[0]  # R10+0x2000 -> R10
             processed_src.append(tmp)
 
-    return ctrl_code, comment, predicate, opcode, dest, processed_src
+    return ctrl_code, comment, predicate, opcode, processed_dst, processed_src
 
 def decode_ctrl_code(ctrl_code: str):
     ctrl_code = ctrl_code.split(':')

@@ -38,6 +38,8 @@ def get_min_stall_count(cc, opcode):
     elif cc == (8, 0):
         if opcode.startswith('LDGSTS'):
             return 10
+        elif opcode.startswith('STG'):
+            return 10
         else:
             return 5
     else:
