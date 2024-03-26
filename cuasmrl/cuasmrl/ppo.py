@@ -253,8 +253,8 @@ def env_loop(env, config):
             next_obs = torch.Tensor(next_obs).to(device)
             next_done = torch.Tensor([next_done_np]).to(device)
 
-            print(action)
-            print(reward)
+            # print(action)
+            # print(reward)
 
             # handle error
             if info['status'] == Status.SEGFAULT:

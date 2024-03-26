@@ -438,7 +438,7 @@ class MutationEngine:
 
         return -ms
 
-    @lru_cache(maxsize=1000)
+    # @lru_cache(maxsize=1000)
     def get_perf(self, sample: Sample):
         mutated_kernel = sample.kernel_section[self.kernel_start_line:]
         mutated_sass = deepcopy(self.sass)
