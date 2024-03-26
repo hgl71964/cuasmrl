@@ -41,7 +41,7 @@ def get_min_stall_count(cc, opcode):
         elif opcode.startswith('STG'):
             return 10
         else:
-            return 5
+            return 7
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
