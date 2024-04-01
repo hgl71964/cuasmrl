@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument("--verbose", type=int, default=0)
 
     parser.add_argument("--env_id", type=str, default='cuasmenv-v0')
-    parser.add_argument("--num_iterations", type=int, default=int(1e6))
+    parser.add_argument("--num_iterations", type=int, default=int(1e4))
     parser.add_argument("--minibatch_size", type=int, default=8)
     parser.add_argument("--horizon", type=int)
     parser.add_argument("--num_steps", type=int, default=64)
