@@ -4,7 +4,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_all_checklist
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
@@ -270,7 +270,8 @@ class Sample:
         post_line = kernel_section[lineno + 1].strip()
 
         mask = [1, 1]  # repr valid to move up and down
-        waits, r, w, _, _ = self.engine.decode_ctrl_code(ctrl_code)
+        waits, r, w, _, self_stall_count = self.engine.decode_ctrl_code(
+            ctrl_code)
         r = -1 if r[1] == '-' else int(r[1])
         w = -1 if w[1] == '-' else int(w[1])
 
@@ -292,7 +293,7 @@ class Sample:
                 mask[0] = 0
 
             # scoreboard
-            _, p_r, p_w, _, stall_count = self.engine.decode_ctrl_code(
+            _, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
                 p_ctrl_code)
             p_r = -1 if p_r[1] == '-' else int(p_r[1])
             p_w = -1 if p_w[1] == '-' else int(p_w[1])
@@ -301,7 +302,7 @@ class Sample:
 
             #  stall count
             ## for inst
-            total = int(stall_count[1:-1])
+            total = int(p_stall_count[1:-1])
             for i in range(1, 9):
                 if mask[0] == 0:
                     break
@@ -369,7 +370,7 @@ class Sample:
 
             # stall count
             total = 0
-            # move up several lines to check stall counts
+            ## for inst; move up several lines to check stall counts
             for i in range(1, 9):
                 if mask[1] == 0:
                     break
@@ -388,5 +389,36 @@ class Sample:
                 if tmp_dst in p_src and total <= get_min_stall_count(
                         CC, p_opcode):
                     mask[1] = 0
+
+            ## for memOp
+            total = int(self_stall_count[1:-1])
+            for i in range(2, 9):
+                if mask[1] == 0:
+                    break
+
+                try:
+                    tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+                        kernel_section[lineno + i].strip())
+                except:
+                    # NOTE: decode gets error when (lineno + i) goes out of bounds,
+                    # this is a hack to skip
+                    tmp_ctrl = None
+                if tmp_ctrl is None:
+                    # if it is a label, don't care stall count
+                    continue
+                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+
+                checklist = get_all_checklist(CC, tmp_opcode, tmp_dst, tmp_src)
+                min_st = get_min_stall_count(CC, tmp_opcode)
+                if dst in checklist and total <= min_st:
+                    mask[1] = 0
+                # haven't finished read
+                for s in src:
+                    if s in checklist and total <= min_st:
+                        mask[1] = 0
+                        break
+
+                stall_count = int(stall_count[1:-1])
+                total += stall_count
 
         return mask

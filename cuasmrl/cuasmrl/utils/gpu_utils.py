@@ -19,7 +19,12 @@ MUTATABLE_OPS = {
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
     (7, 5): (
-        ['LDG', 'LDS', 'STG'],  # memory_ops
+        # memory_ops
+        [
+            'LDG',
+            'LDS',
+            'STG',
+        ],
         # ban_ops
         [
             'ERRBAR',
@@ -52,6 +57,19 @@ def get_min_stall_count(cc, opcode):
             return 10
         else:
             return 7
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
+def get_all_checklist(cc, opcode, dst, src):
+    if cc == (7, 5):
+        if opcode.startswith('CS2R'):
+            return [dst] + src
+        else:
+            return src
+
+    elif cc == (8, 0):
+        return src
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
