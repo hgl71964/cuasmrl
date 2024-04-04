@@ -145,6 +145,8 @@ def env_loop(env, config):
         # config
         config_dict = asdict(config)
         config_json = json.dumps(config_dict, indent=4)
+
+        os.makedirs(save_path, exist_ok=True)
         with open(os.path.join(save_path, "drl_config.json"), "w") as file:
             file.write(config_json)
 

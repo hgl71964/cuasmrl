@@ -20,7 +20,15 @@ MUTATABLE_OPS = {
     ),
     (7, 5): (
         ['LDG', 'LDS', 'LDSM'],  # memory_ops
-        ['ERRBAR', 'MEMBAR', 'BAR', 'DEPBAR', 'ULDC'],  # ban_ops
+        [
+            'ERRBAR',
+            'MEMBAR',
+            'BAR',
+            'DEPBAR',
+            'ULDC',
+            'EXIT',
+            'BAR.SYNC',
+        ],  # ban_ops
     ),
 }
 
