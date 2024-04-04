@@ -180,7 +180,7 @@ class Env(gym.Env):
         else:
             # valid
             info['status'] = Status.OK
-            reward = (self.last_perf - perf) / self.init_perf
+            reward = (self.last_perf - perf) / self.init_perf * 10
 
         # update
         state, masks = self._build_state()

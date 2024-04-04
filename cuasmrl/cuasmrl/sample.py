@@ -236,7 +236,9 @@ class Sample:
                 print(k)
             raise RuntimeError(f'unknown memory location: {dst}')
 
-        return [mem_loc[dst]]
+        # build
+        total = len(mem_loc)
+        return [mem_loc[dst] / total]
 
     def embed_src(self, src, mem_loc, max_src_len):
 
@@ -248,7 +250,8 @@ class Sample:
                 raise RuntimeError(f'unknown memory location: {s}')
 
         # build
-        embedding = [mem_loc[s] for s in src]
+        total = len(mem_loc)
+        embedding = [mem_loc[s] / total for s in src]
         diff = max_src_len - len(embedding)
         padding = [-1] * diff
 

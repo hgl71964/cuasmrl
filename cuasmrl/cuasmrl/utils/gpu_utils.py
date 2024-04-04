@@ -34,7 +34,7 @@ def get_mutatable_ops(cc):
 
 def get_min_stall_count(cc, opcode):
     if cc == (7, 5):
-        raise RuntimeError(f'unsupported compute capability: {cc}')
+        return 7
     elif cc == (8, 0):
         if opcode.startswith('LDGSTS'):
             return 10
