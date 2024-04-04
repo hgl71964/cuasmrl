@@ -16,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.constants import Status
+from cuasmrl.utils.record import save_data
 
 logger = get_logger(__name__)
 
@@ -222,6 +223,7 @@ def env_loop(env, config):
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(config.num_env).to(device)
 
+    best_reward = 0
     for iteration in range(start_iteration, config.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if anneal_lr:
@@ -272,6 +274,19 @@ def env_loop(env, config):
                 torch.backends.cuda.is_built = lambda: False
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
+                # before reset save the best cubin
+                if iteration > 1000:
+                    if 'episode' in info and info['episode']['r'] > best_reward:
+                        best_reward = info['episode']['r']
+                        # assemble and save
+                        env.eng.assemble(env.sample)
+                        save_data(
+                            env.eng.bin,
+                            env.last_perf,
+                            env.init_perf,
+                            save_path,
+                        )
+
                 # in SyncVectorEnv, the env is automatically reset if done
                 # we try to do the same here
                 next_obs, _ = env.reset(seed=config.seed)
@@ -282,6 +297,7 @@ def env_loop(env, config):
                 logger.info(
                     f"global_step={global_step}, episodic_return={info['episode']['r']}"
                 )
+                best_reward = max(best_reward, info['episode']['r'])
                 if log:
                     writer.add_scalar("charts/episodic_return",
                                       info["episode"]["r"], global_step)
