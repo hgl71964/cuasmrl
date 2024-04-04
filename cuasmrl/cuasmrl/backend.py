@@ -132,22 +132,22 @@ class Env(gym.Env):
             logger.error(f'SEGFAULT: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(10, 1, -1):
+                for i in range(15, 1, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
                 logger.critical(f'{self.sample.kernel_section[lineno-1]}')
 
-                for i in range(1, 10):
+                for i in range(1, 15):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(10, 0, -1):
+                for i in range(15, 0, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
 
-                for i in range(2, 10):
+                for i in range(2, 15):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
         elif not test_ok:
             # test failed
@@ -160,7 +160,7 @@ class Env(gym.Env):
             logger.error(f'TESTFAIL: {index}, {lineno}; {direction}')
             if direction == 0:
                 # it was pushed up
-                for i in range(2, 15):
+                for i in range(15, 1, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno]}')
@@ -169,7 +169,7 @@ class Env(gym.Env):
                 for i in range(1, 15):
                     logger.error(f'{self.sample.kernel_section[lineno+i]}')
             else:
-                for i in range(1, 15):
+                for i in range(15, 0, -1):
                     logger.error(f'{self.sample.kernel_section[lineno-i]}')
 
                 logger.critical(f'{self.sample.kernel_section[lineno+1]}')
@@ -215,6 +215,10 @@ class MutationEngine:
         text_buffer_1, text_buffer_2 = cf.dump_sass()
         sass = text_buffer_1.getvalue().split('\n')
         kernel_section = text_buffer_2.getvalue().split('\n')
+
+        # NOTE: if want to dump the initial cuasm file
+        # with open('tmp.cuasm', 'w') as f:
+        #     f.write(text_buffer_1.getvalue())
 
         # in-memory sass text TODO assme only one kernel
         kernel_label = None

@@ -306,8 +306,13 @@ class Sample:
                 if mask[0] == 0:
                     break
 
-                tmp_ctrl, *_, tmp_opcode, _, tmp_src = self.engine.decode(
-                    kernel_section[lineno + i].strip())
+                try:
+                    tmp_ctrl, *_, tmp_opcode, _, tmp_src = self.engine.decode(
+                        kernel_section[lineno + i].strip())
+                except:
+                    # NOTE: decode gets error when (lineno + i) goes out of bounds,
+                    # this is a hack to skip
+                    tmp_ctrl = None
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
                     continue

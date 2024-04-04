@@ -19,7 +19,8 @@ MUTATABLE_OPS = {
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
     (7, 5): (
-        ['LDG', 'LDS', 'LDSM'],  # memory_ops
+        ['LDG', 'LDS', 'STG'],  # memory_ops
+        # ban_ops
         [
             'ERRBAR',
             'MEMBAR',
@@ -28,7 +29,8 @@ MUTATABLE_OPS = {
             'ULDC',
             'EXIT',
             'BAR.SYNC',
-        ],  # ban_ops
+            'LDSM',
+        ],
     ),
 }
 
