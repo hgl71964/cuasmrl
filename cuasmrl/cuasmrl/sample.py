@@ -2,7 +2,6 @@ import os
 from copy import deepcopy
 
 import numpy as np
-import torch
 
 from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_all_checklist
 from cuasmrl.utils.logger import get_logger
@@ -410,9 +409,10 @@ class Sample:
 
                 checklist = get_all_checklist(CC, tmp_opcode, tmp_dst, tmp_src)
                 min_st = get_min_stall_count(CC, tmp_opcode)
+                # MemOp haven't finished write
                 if dst in checklist and total <= min_st:
                     mask[1] = 0
-                # haven't finished read
+                # MemOp haven't finished read, but got write to
                 for s in src:
                     if s in checklist and total <= min_st:
                         mask[1] = 0

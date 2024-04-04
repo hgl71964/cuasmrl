@@ -62,6 +62,7 @@ def get_min_stall_count(cc, opcode):
 
 
 def get_all_checklist(cc, opcode, dst, src):
+    # some opcodes needs both dst and src ready... so we need to check both
     if cc == (7, 5):
         if opcode.startswith('CS2R'):
             return [dst] + src

@@ -361,8 +361,10 @@ class MutationEngine:
                 w = dest.replace(']', '').split('[')
                 for r in w[1:]:
                     tmp = r.split('.')[0]  # R10.64 -> R10
-                    processed_src.append(
-                        tmp)  # <- in this case, it is treated as src
+                    # In this case, it is treated as src
+                    # e.g. STG.E desc[UR16][R10.64], R197 ;
+                    # the dst needs to be ready
+                    processed_src.append(tmp)
             else:
                 dest = dest.strip(']').strip('[')
                 dest = dest.split('.')[0]
