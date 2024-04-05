@@ -97,7 +97,10 @@ class Env(gym.Env):
             raise RuntimeError(f'init perf {init_perf} < 0; not valid cubin')
 
         state, masks = self._build_state()
-        return state, {'masks': masks}
+        return state, {
+            'masks': masks,
+            'status': Status.OK,
+        }
 
     def step(self, action):
         action = action.flatten()[0]
