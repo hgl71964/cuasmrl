@@ -192,8 +192,11 @@ class Env(gym.Env):
         return state, reward, terminated, truncated, info
 
     def _build_state(self):
-        return self.sample.embedding(self.observation_space, self.mem_loc,
-                                     self.max_src_len)
+        return self.sample.embedding(
+            self.observation_space,
+            self.mem_loc,
+            self.max_src_len,
+        )
 
 
 class MutationEngine:
@@ -466,7 +469,6 @@ class MutationEngine:
             assemble_ok = False
             cubin = None
 
-        ## XXX NOT test here to allow possible intermediate incorrect results
         # BENCH
         fn = lambda: self.bin.c_wrapper(
             self.grid_0,

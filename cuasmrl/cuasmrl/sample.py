@@ -86,6 +86,7 @@ class Sample:
             assert False, f'invalid action: {action}'
 
     def get_mutable(self) -> list[int]:
+        # pre-scan to obtain assembly file stats
         debug = False
         if os.getenv("SIP_DEBUG", "0") == "1":
             debug = True
@@ -232,10 +233,10 @@ class Sample:
             return [-1]
 
         # debug
-        if dst not in mem_loc:
-            for k, _ in mem_loc.items():
-                print(k)
-            raise RuntimeError(f'unknown memory location: {dst}')
+        # if dst not in mem_loc:
+        #     for k, _ in mem_loc.items():
+        #         print(k)
+        #     raise RuntimeError(f'unknown memory location: {dst}')
 
         # build
         total = len(mem_loc)
@@ -244,11 +245,11 @@ class Sample:
     def embed_src(self, src, mem_loc, max_src_len):
 
         # debug
-        for s in src:
-            if s not in mem_loc:
-                for k, _ in mem_loc.items():
-                    print(k)
-                raise RuntimeError(f'unknown memory location: {s}')
+        # for s in src:
+        #     if s not in mem_loc:
+        #         for k, _ in mem_loc.items():
+        #             print(k)
+        #         raise RuntimeError(f'unknown memory location: {s}')
 
         # build
         total = len(mem_loc)
@@ -270,7 +271,7 @@ class Sample:
         prev_line = kernel_section[lineno - 1].strip()
         post_line = kernel_section[lineno + 1].strip()
 
-        mask = [1, 1]  # repr valid to move up and down
+        mask = [1, 1]  # valid to move up and down
         waits, r, w, _, self_stall_count = self.engine.decode_ctrl_code(
             ctrl_code)
         r = -1 if r[1] == '-' else int(r[1])
@@ -301,7 +302,7 @@ class Sample:
             if p_r in waits or p_w in waits:
                 mask[0] = 0
 
-            #  stall count
+            # stall count
             ## for inst
             total = int(p_stall_count[1:-1])
             for i in range(1, 9):
