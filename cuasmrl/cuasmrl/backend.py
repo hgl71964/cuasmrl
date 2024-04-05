@@ -18,6 +18,7 @@ from CuAsm.CuAsmParser import CuAsmParser
 from cuasmrl.sample import Sample
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.constants import Status
+from cuasmrl.bench import do_bench
 
 logger = get_logger(__name__)
 
@@ -86,9 +87,9 @@ class Env(gym.Env):
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
 
-        # init_perf, _ = max([self.eng.get_init_perf() for _ in range(10)])
-        init_perf, _ = max([self.eng.get_init_perf() for _ in range(10)],
-                           key=lambda x: x[0])
+        init_perf, _ = max([self.eng.get_init_perf() for _ in range(1)])
+        # init_perf, _ = max([self.eng.get_init_perf() for _ in range(10)],
+        #                    key=lambda x: x[0])
         self.init_perf = init_perf
         self.last_perf = init_perf
 
@@ -428,7 +429,8 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                # ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                ms = do_bench(fn)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
@@ -486,7 +488,8 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                # ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                ms = do_bench(fn)
             except RuntimeError as run_err:
                 # likely a cuda error
                 logger.error(f'CUDA? Runtime Err: {run_err}')
@@ -543,9 +546,10 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                warmup = self.config['warmup']
-                rep = self.config['rep']
-                ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+                # warmup = self.config['warmup']
+                # rep = self.config['rep']
+                # ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+                ms = do_bench(fn)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
