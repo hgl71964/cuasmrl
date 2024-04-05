@@ -86,7 +86,7 @@ class Env(gym.Env):
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
 
-        init_perf, _ = max([self.eng.get_init_perf() for _ in range(1)])
+        init_perf, _ = max([self.eng.get_init_perf() for _ in range(5)])
         self.init_perf = init_perf
         self.last_perf = init_perf
 
@@ -442,7 +442,7 @@ class MutationEngine:
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops, cubin
 
-        return -ms
+        return -ms, None
 
     # @lru_cache(maxsize=1000)
     def get_perf(self, sample: Sample):
