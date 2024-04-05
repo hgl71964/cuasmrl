@@ -283,17 +283,15 @@ class Sample:
         if p_ctrl_code is None:
             # NOT move across labels
             mask[0] = 0
+        # direct dependencies
+        elif p_dest in src:
+            mask[0] = 0
+        elif dst in p_src:
+            mask[0] = 0
+        # ban ops
+        elif p_opcode in BAN_OPS:
+            mask[0] = 0
         else:
-            # direct dependencies
-            if p_dest in src:
-                mask[0] = 0
-            if dst in p_src:
-                mask[0] = 0
-
-            # ban ops
-            if p_opcode in BAN_OPS:
-                mask[0] = 0
-
             # scoreboard
             _, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
                 p_ctrl_code)
@@ -354,17 +352,15 @@ class Sample:
         if p_ctrl_code is None:
             # NOT move across labels
             mask[1] = 0
+        # direct dependencies
+        elif dst in p_src:
+            mask[1] = 0
+        elif p_dest in src:
+            mask[1] = 0
+        # ban ops
+        elif p_opcode in BAN_OPS:
+            mask[1] = 0
         else:
-            # direct dependencies
-            if dst in p_src:
-                mask[1] = 0
-            if p_dest in src:
-                mask[1] = 0
-
-            # ban ops
-            if p_opcode in BAN_OPS:
-                mask[1] = 0
-
             # scoreboard
             p_wait, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
             if r in p_wait or w in p_wait:

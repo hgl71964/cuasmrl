@@ -287,22 +287,23 @@ def env_loop(env, config):
                             save_path,
                         )
 
+                # log
+                if 'episode' in info:
+                    logger.info(
+                        f"global_step={global_step}, episodic_return={info['episode']['r']}"
+                    )
+                    best_reward = max(best_reward, info['episode']['r'])
+                    if log:
+                        writer.add_scalar("charts/episodic_return",
+                                          info["episode"]["r"], global_step)
+                        writer.add_scalar("charts/episodic_length",
+                                          info["episode"]["l"], global_step)
+
                 # in SyncVectorEnv, the env is automatically reset if done
                 # we try to do the same here
-                next_obs, _ = env.reset(seed=config.seed)
+                next_obs, info = env.reset(seed=config.seed)
                 next_obs = torch.Tensor(next_obs).to(device)
                 next_done = torch.zeros(config.num_env).to(device)
-
-            if 'episode' in info:
-                logger.info(
-                    f"global_step={global_step}, episodic_return={info['episode']['r']}"
-                )
-                best_reward = max(best_reward, info['episode']['r'])
-                if log:
-                    writer.add_scalar("charts/episodic_return",
-                                      info["episode"]["r"], global_step)
-                    writer.add_scalar("charts/episodic_length",
-                                      info["episode"]["l"], global_step)
 
         # bootstrap value if not done
         with torch.no_grad():
