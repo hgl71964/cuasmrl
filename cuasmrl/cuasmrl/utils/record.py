@@ -1,5 +1,4 @@
 import os
-import torch
 import pickle
 
 from cuasmrl.utils.gpu_utils import get_gpu_name
