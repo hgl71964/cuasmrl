@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 class CategoricalMasked(Categorical):
 
     def __init__(self, probs=None, logits=None, validate_args=None, masks=[]):
-        self.device = torch.device("cpu")
+        self.device = torch.device("cpu")  # XXX hardcore for now
         self.masks = masks
         if len(self.masks) == 0:
             super(CategoricalMasked, self).__init__(probs, logits,

@@ -8,6 +8,7 @@ from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
 MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
+MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
 
 logger = get_logger(__name__)
 
@@ -167,7 +168,7 @@ class Sample:
                 cnt += 1
 
                 # only memory ops are considered mutable candidates
-                if op_embed[0] == 1:
+                if op_embed[0] != -1:
                     self.candidates.append(lineno)
                     # TODO check bound of kernel_section?
                     mask = self._generate_mask(
@@ -211,7 +212,7 @@ class Sample:
     def embed_opcode(self, opcode):
         # opcode is like: LDG.E.128.SYS
         # i.e. {inst}.{modifier*}
-        memory_op = 0
+        memory_op = -1
         ban = False
         for op in BAN_OPS:
             if op in opcode:
@@ -221,7 +222,8 @@ class Sample:
         if not ban:
             for op in MEMORY_OPS:
                 if op in opcode:
-                    memory_op = 1
+                    memory_op = MEMORY_OPS_INDEX[op]
+                    # memory_op = 1
                     break
         return [memory_op]
 
