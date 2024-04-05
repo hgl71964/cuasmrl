@@ -376,7 +376,7 @@ class Sample:
                 if mask[1] == 0:
                     break
 
-                tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
+                tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
@@ -386,10 +386,15 @@ class Sample:
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
-                # the stall count between assign and uses must >= MIN_STALL_COUNT (could be architecture-dependent)
-                if tmp_dst in p_src and total <= get_min_stall_count(
-                        CC, p_opcode):
+                checklist = get_all_checklist(CC, tmp_opcode, tmp_dst, tmp_src)
+                min_st = get_min_stall_count(CC, tmp_opcode)
+
+                if p_dest in checklist and total <= min_st:
                     mask[1] = 0
+                for s in p_src:
+                    if s in checklist and total <= min_st:
+                        mask[1] = 0
+                        break
 
             ## for memOp
             total = int(self_stall_count[1:-1])

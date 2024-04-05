@@ -49,6 +49,8 @@ def get_mutatable_ops(cc):
 
 def get_min_stall_count(cc, opcode):
     if cc == (7, 5):
+        if opcode.startswith('CS2R'):
+            return 12
         return 7
     elif cc == (8, 0):
         if opcode.startswith('LDGSTS'):
