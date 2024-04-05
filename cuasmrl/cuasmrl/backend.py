@@ -87,9 +87,8 @@ class Env(gym.Env):
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
 
-        init_perf, _ = max([self.eng.get_init_perf() for _ in range(1)])
-        # init_perf, _ = max([self.eng.get_init_perf() for _ in range(10)],
-        #                    key=lambda x: x[0])
+        # init_perf, _ = max([self.eng.get_init_perf() for _ in range(1)])
+        init_perf, _ = self.eng.get_init_perf()
         self.init_perf = init_perf
         self.last_perf = init_perf
 
