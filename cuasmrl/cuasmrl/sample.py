@@ -9,6 +9,7 @@ from cuasmrl.utils.logger import get_logger
 CC = get_gpu_cc()
 MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
 MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
+ST_WINDOW = 10
 
 logger = get_logger(__name__)
 
@@ -303,7 +304,7 @@ class Sample:
             # stall count
             ## for inst
             total = int(p_stall_count[1:-1])
-            for i in range(1, 9):
+            for i in range(1, 1 + ST_WINDOW):
                 if mask[0] == 0:
                     break
 
@@ -330,7 +331,7 @@ class Sample:
 
             ## for MemOp
             total = 0
-            for i in range(2, 10):
+            for i in range(2, 2 + ST_WINDOW):
                 if mask[0] == 0:
                     break
 
@@ -369,7 +370,7 @@ class Sample:
             # stall count
             total = 0
             ## for inst; move up several lines to check stall counts
-            for i in range(1, 9):
+            for i in range(1, 1 + ST_WINDOW):
                 if mask[1] == 0:
                     break
 
@@ -395,7 +396,7 @@ class Sample:
 
             ## for memOp
             total = int(self_stall_count[1:-1])
-            for i in range(2, 9):
+            for i in range(2, 2 + ST_WINDOW):
                 if mask[1] == 0:
                     break
 
