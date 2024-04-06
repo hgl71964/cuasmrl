@@ -1,6 +1,8 @@
+import os
 import sys
 import subprocess
 import tempfile
+import time
 from copy import deepcopy
 from functools import lru_cache
 
@@ -61,7 +63,10 @@ class Env(gym.Env):
         super().__init__()
         self.eng = eng
         self.n_tests = n_tests
-        self.verbose = verbose
+
+        self.profile = False
+        if os.getenv("SIP_PROFILE", "0") == "1":
+            self.profile = True
 
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
@@ -116,7 +121,7 @@ class Env(gym.Env):
                     cubin,
                     self.n_tests,
                     self.n_tests,
-                    self.verbose,
+                    False,
                 )
             except:
                 # segfault from test_fn
@@ -195,11 +200,23 @@ class Env(gym.Env):
         return state, reward, terminated, truncated, info
 
     def _build_state(self):
-        return self.sample.embedding(
-            self.observation_space,
-            self.mem_loc,
-            self.max_src_len,
-        )
+
+        if self.profile:
+            t1 = time.time()
+            state = self.sample.embedding(
+                self.observation_space,
+                self.mem_loc,
+                self.max_src_len,
+            )
+            t2 = time.time()
+            logger.info(f'[BUILD STATE] {t2-t1:.2f}s')
+        else:
+            state = self.sample.embedding(
+                self.observation_space,
+                self.mem_loc,
+                self.max_src_len,
+            )
+        return state
 
 
 class MutationEngine:

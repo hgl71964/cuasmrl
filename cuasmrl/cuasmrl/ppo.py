@@ -130,6 +130,10 @@ def env_loop(env, config):
         "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
     logger.info(f"[ENV_LOOP] WorkDir: {save_path}; Device: {device}")
 
+    profile = False
+    if os.getenv("SIP_PROFILE", "0") == "1":
+        profile = True
+
     # ===== log =====
     log = bool(config.log)
     if log:
@@ -416,7 +420,7 @@ def env_loop(env, config):
                               global_step)
             writer.add_scalar("losses/explained_variance", explained_var,
                               global_step)
-            print("SPS:", int(global_step / (time.time() - start_time)))
+            print(f"SPS: {global_step / (time.time() - start_time):.2f}")
             writer.add_scalar("charts/SPS",
                               int(global_step / (time.time() - start_time)),
                               global_step)
