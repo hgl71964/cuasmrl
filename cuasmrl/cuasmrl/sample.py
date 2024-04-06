@@ -3,13 +3,13 @@ from copy import deepcopy
 
 import numpy as np
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_all_checklist
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
 MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
 MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
-ST_WINDOW = 10
+ST_WINDOW = get_st_window(CC)
 
 logger = get_logger(__name__)
 
@@ -320,10 +320,9 @@ class Sample:
                     continue
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
-                if p_dest in tmp_src and total <= get_min_stall_count(
-                        CC,
-                        tmp_opcode,
-                ):
+                # move down check
+                min_st = get_min_stall_count(CC, p_opcode)
+                if p_dest in tmp_src and total <= min_st:
                     mask[0] = 0
 
                 stall_count = int(stall_count[1:-1])
@@ -335,7 +334,7 @@ class Sample:
                 if mask[0] == 0:
                     break
 
-                tmp_ctrl, *_, tmp_dst, _ = self.engine.decode(
+                tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
@@ -344,8 +343,14 @@ class Sample:
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
-                if tmp_dst in src and total <= get_min_stall_count(CC, opcode):
-                    mask[0] = 0
+                # moveup check
+                min_st = get_min_stall_count(CC, tmp_opcode)
+                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
+                                                       tmp_src, dst, src)
+                for consumer in consumers:
+                    if consumer in producers and total <= min_st:
+                        mask[0] = 0
+                        break
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -384,13 +389,12 @@ class Sample:
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
 
-                checklist = get_all_checklist(CC, tmp_opcode, tmp_dst, tmp_src)
+                # moveup check
                 min_st = get_min_stall_count(CC, tmp_opcode)
-
-                if p_dest in checklist and total <= min_st:
-                    mask[1] = 0
-                for s in p_src:
-                    if s in checklist and total <= min_st:
+                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
+                                                       tmp_src, p_dest, p_src)
+                for consumer in consumers:
+                    if consumer in producers and total <= min_st:
                         mask[1] = 0
                         break
 
@@ -412,16 +416,10 @@ class Sample:
                     continue
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
-                checklist = get_all_checklist(CC, tmp_opcode, tmp_dst, tmp_src)
-                min_st = get_min_stall_count(CC, tmp_opcode)
-                # MemOp haven't finished write
-                if dst in checklist and total <= min_st:
+                # move down check
+                min_st = get_min_stall_count(CC, opcode)
+                if dst in tmp_src and total <= min_st:
                     mask[1] = 0
-                # MemOp haven't finished read, but got write to
-                for s in src:
-                    if s in checklist and total <= min_st:
-                        mask[1] = 0
-                        break
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count

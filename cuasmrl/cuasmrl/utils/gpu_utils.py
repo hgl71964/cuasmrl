@@ -50,7 +50,7 @@ def get_mutatable_ops(cc):
 def get_min_stall_count(cc, opcode):
     if cc == (7, 5):
         if opcode.startswith('CS2R'):
-            return 12
+            return 19
         return 7
     elif cc == (8, 0):
         if opcode.startswith('LDGSTS'):
@@ -63,16 +63,24 @@ def get_min_stall_count(cc, opcode):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def get_all_checklist(cc, opcode, dst, src):
+def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
     # some opcodes needs both dst and src ready... so we need to check both
     if cc == (7, 5):
         if opcode.startswith('CS2R'):
-            return [dst] + src
+            return [dst] + src, [tmp_dst] + tmp_src
         else:
-            return src
-
+            return src, [tmp_dst]
     elif cc == (8, 0):
-        return src
+        return src, [tmp_dst]
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
+def get_st_window(cc):
+    if cc == (7, 5):
+        return 10
+    elif cc == (8, 0):
+        return 8
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
