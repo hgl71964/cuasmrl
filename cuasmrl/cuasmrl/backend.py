@@ -113,6 +113,7 @@ class Env(gym.Env):
         self.sample.apply(index, direction)
 
         # run and test
+        t1 = time.time()
         perf, cubin = self.eng.get_perf(self.sample)
         test_ok = True
         if perf > 0:
@@ -126,6 +127,9 @@ class Env(gym.Env):
             except:
                 # segfault from test_fn
                 perf = -1
+        t2 = time.time()
+        if self.profile:
+            logger.info(f'[GET PERF] {t2-t1:.2f}s')
 
         truncated = False
         terminated = False
