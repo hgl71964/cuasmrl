@@ -298,6 +298,8 @@ class MutationEngine:
         self.launch_exit_hook = launch_exit_hook
         self.non_constexpr_arg_values = non_constexpr_arg_values
 
+        self.cap = CuAsmParser()
+
     def decode(self, line: str):
         line = line.strip('\n')
         line = line.split(' ')
@@ -481,12 +483,14 @@ class MutationEngine:
         mutated_sass[self.start_line:self.end_line + 1] = mutated_kernel
 
         # buffer IO
-        cap = CuAsmParser()
+        # cap = CuAsmParser()
         assemble_ok = True
         cubin = None
         try:
-            cap.parse_from_buffer(mutated_sass)
-            cubin = cap.dump_cubin()
+            # cap.parse_from_buffer(mutated_sass)
+            # cubin = cap.dump_cubin()
+            self.cap.parse_from_buffer(mutated_sass)
+            cubin = self.cap.dump_cubin()
             self.update_cubin(cubin)
         except Exception as e:
             print(f'Assemble failed: {e}')
