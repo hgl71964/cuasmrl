@@ -53,12 +53,7 @@ def get_min_stall_count(cc, opcode):
             return 19
         return 7
     elif cc == (8, 0):
-        if opcode.startswith('LDGSTS'):
-            return 10
-        elif opcode.startswith('STG'):
-            return 10
-        else:
-            return 7
+        return 10
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 

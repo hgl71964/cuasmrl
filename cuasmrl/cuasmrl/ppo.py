@@ -128,7 +128,7 @@ def env_loop(env, config):
     save_path = os.path.join(config.default_out_path, config.save_dir)
     device = torch.device(
         "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
-    logger.info(f"[ENV_LOOP] WorkDir: {save_path}; Device: {device}")
+    logger.info(f"[ENV_LOOP] WorkDir: {save_path}; Traing Device: {device}")
 
     profile = False
     if os.getenv("SIP_PROFILE", "0") == "1":
