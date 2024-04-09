@@ -304,6 +304,8 @@ def env_loop(env, config):
                                           info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length",
                                           info["episode"]["l"], global_step)
+                        writer.add_scalar("charts/init_perf", env.init_perf,
+                                          global_step)
 
                 # in SyncVectorEnv, the env is automatically reset if done
                 # we try to do the same here
