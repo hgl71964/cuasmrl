@@ -281,16 +281,19 @@ def env_loop(env, config):
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
                 # before reset save the best cubin
-                if iteration > 1000:
+                if iteration > 500:
                     if 'episode' in info and info['episode']['r'] > best_reward:
                         best_reward = info['episode']['r']
                         # assemble and save
                         env.eng.assemble(env.sample)
-                        save_data(
+                        p = save_data(
                             env.eng.bin,
                             env.last_perf,
                             env.init_perf,
                             save_path,
+                        )
+                        logger.info(
+                            f'save cubin with {best_reward} at {iteration} to {p}'
                         )
 
                 # log
