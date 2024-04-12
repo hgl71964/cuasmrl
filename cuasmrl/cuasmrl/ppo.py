@@ -281,7 +281,7 @@ def env_loop(env, config):
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
                 # before reset save the best cubin
-                if iteration > 5:
+                if iteration > 100:
                     if 'episode' in info and info['episode']['r'][
                             0] > best_reward:
                         best_reward = info['episode']['r'][0]
