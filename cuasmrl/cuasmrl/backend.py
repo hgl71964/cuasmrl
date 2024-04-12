@@ -79,7 +79,8 @@ class Env(gym.Env):
 
         # n line, each line can move up or down; total number unchanged throughout rollouts
         # self.action_space = MultiDiscrete([dims, 2])
-        self.action_space = Discrete(n=dims * 2)  # flatten multiDsiscrete
+        self.action_space = Discrete(n=dims * 2 +
+                                     1)  # flatten multiDsiscrete + noop
 
         # NOTE: see Sample.embedding() for state space design
         n_feat = 10 + 1 + 1 + 1 + max_src_len
@@ -109,30 +110,35 @@ class Env(gym.Env):
 
     def step(self, action):
         action = action.flatten()[0]
-        index, direction = action // 2, action % 2
-        self.sample.apply(index, direction)
+        if action == self.action_space.n - 1:
+            perf = self.last_perf
+            test_ok = True
+            terminated = True
+        else:
+            index, direction = action // 2, action % 2
+            self.sample.apply(index, direction)
 
-        # run and test
-        t1 = time.time()
-        perf, cubin = self.eng.get_perf(self.sample)
-        test_ok = True
-        if perf > 0:
-            try:
-                test_ok = self.eng.test_fn(
-                    cubin,
-                    self.n_tests,
-                    self.n_tests,
-                    False,
-                )
-            except:
-                # segfault from test_fn
-                perf = -1
-        t2 = time.time()
-        if self.profile:
-            logger.info(f'[GET PERF] {t2-t1:.2f}s')
+            # run and test
+            t1 = time.time()
+            perf, cubin = self.eng.get_perf(self.sample)
+            test_ok = True
+            if perf > 0:
+                try:
+                    test_ok = self.eng.test_fn(
+                        cubin,
+                        self.n_tests,
+                        self.n_tests,
+                        False,
+                    )
+                except:
+                    # segfault from test_fn
+                    perf = -1
+            t2 = time.time()
+            if self.profile:
+                logger.info(f'[GET PERF] {t2-t1:.2f}s')
+            terminated = False
 
         truncated = False
-        terminated = False
         info = {}
         reward = None
         state = None
@@ -198,7 +204,7 @@ class Env(gym.Env):
 
         # update
         state, masks = self._build_state()
-        info['masks'] = masks
+        info['masks'] = masks  # noop should be handled outsides
         self.last_perf = perf
 
         return state, reward, terminated, truncated, info

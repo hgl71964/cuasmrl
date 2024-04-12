@@ -239,9 +239,10 @@ def env_loop(env, config):
             global_step += config.num_env
             obs[step] = next_obs
             dones[step] = next_done
-            action_masks[step] = torch.tensor(info['masks'],
-                                              dtype=torch.int32).flatten()
-
+            # append 1 to indicate noop
+            mask = torch.tensor(info['masks'], dtype=torch.int32).flatten()
+            mask = torch.cat([mask, torch.tensor([1], dtype=torch.int32)])
+            action_masks[step] = mask
             if profile:
                 logger.info(f'effective dim: {action_masks[step].sum()}')
 
