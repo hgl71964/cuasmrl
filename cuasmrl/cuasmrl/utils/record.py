@@ -12,6 +12,7 @@ def save_data(
     init_perf,
     save_path,
 ) -> str:
+    global COUNTER
     data = {}
     data['cubin'] = bin.asm['cubin']  # binary
     data['final_perf'] = final_perf

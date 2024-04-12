@@ -589,11 +589,8 @@ class MutationEngine:
         else:
             ms = -1
 
-        total_flops = self.config.get('total_flops', None)
-
-        if total_flops is not None:
-            tflops = total_flops / ms * 1e-9
-            sample.perf = tflops
+        if self.total_flops is not None:
+            tflops = self.total_flops / ms * 1e-9
             # print(f'ms: {ms:.3f}; tflops: {tflops:.3f};')
             return tflops
 

@@ -281,15 +281,16 @@ def env_loop(env, config):
                 break
             elif info['status'] == Status.TESTFAIL or next_done_np:
                 # before reset save the best cubin
-                if iteration > 500:
-                    if 'episode' in info and info['episode']['r'] > best_reward:
-                        best_reward = info['episode']['r']
+                if iteration > 5:
+                    if 'episode' in info and info['episode']['r'][
+                            0] > best_reward:
+                        best_reward = info['episode']['r'][0]
                         # assemble and save
-                        env.eng.assemble(env.sample)
+                        env.unwrapped.eng.assemble(env.unwrapped.sample)
                         p = save_data(
-                            env.eng.bin,
-                            env.last_perf,
-                            env.init_perf,
+                            env.unwrapped.eng.bin,
+                            env.unwrapped.last_perf,
+                            env.unwrapped.init_perf,
                             save_path,
                         )
                         logger.info(
@@ -298,17 +299,17 @@ def env_loop(env, config):
 
                 # log
                 if 'episode' in info:
+                    best_reward = max(best_reward, info['episode']['r'][0])
                     logger.info(
-                        f"global_step={global_step}, episodic_return={info['episode']['r']}"
+                        f"global_step={global_step}, episodic_return={info['episode']['r']}, best_reward {best_reward:.2f}"
                     )
-                    best_reward = max(best_reward, info['episode']['r'])
                     if log:
                         writer.add_scalar("charts/episodic_return",
                                           info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length",
                                           info["episode"]["l"], global_step)
-                        writer.add_scalar("charts/init_perf", env.init_perf,
-                                          global_step)
+                        writer.add_scalar("charts/init_perf",
+                                          env.unwrapped.init_perf, global_step)
 
                 # in SyncVectorEnv, the env is automatically reset if done
                 # we try to do the same here
