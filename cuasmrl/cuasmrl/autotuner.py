@@ -53,6 +53,7 @@ class Autotuner(TritonAutotuner):
 
         # at this time, fn has been init, so we overwrite the default args
         self.fn.drl_config = drl_config
+        self.save_dir = drl_config.save_dir
 
     def _bench(self, *args, config, **meta):
         # check for conflicts, i.e. meta-parameters both provided
@@ -171,9 +172,7 @@ class Autotuner(TritonAutotuner):
 
     def _write_config(self, config):
         gpu_name = get_gpu_name()
-        dir_path = f'data/{gpu_name}'
-        if self.save_dir is not None:
-            dir_path = f'data/{gpu_name}/{self.save_dir}'
+        dir_path = 'data/' + self.save_dir
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
@@ -183,9 +182,7 @@ class Autotuner(TritonAutotuner):
 
     def _exist_config(self) -> bool:
         gpu_name = get_gpu_name()
-        dir_path = f'data/{gpu_name}'
-        if self.save_dir is not None:
-            dir_path = f'data/{gpu_name}/{self.save_dir}'
+        dir_path = 'data/' + self.save_dir
         if not os.path.exists(dir_path):
             return False
 

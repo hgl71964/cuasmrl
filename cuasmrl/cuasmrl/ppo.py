@@ -241,7 +241,8 @@ def env_loop(env, config):
             dones[step] = next_done
             # append 1 to indicate noop
             mask = torch.tensor(info['masks'], dtype=torch.int32).flatten()
-            mask = torch.cat([mask, torch.tensor([1], dtype=torch.int32)])
+            # mask = torch.cat([mask, torch.tensor([1], dtype=torch.int32)])
+            mask = torch.cat([mask, torch.tensor([0], dtype=torch.int32)])
             action_masks[step] = mask
             if profile:
                 logger.info(f'effective dim: {action_masks[step].sum()}')
@@ -300,7 +301,6 @@ def env_loop(env, config):
 
                 # log
                 if 'episode' in info:
-                    best_reward = max(best_reward, info['episode']['r'][0])
                     logger.info(
                         f"global_step={global_step}, episodic_return={info['episode']['r']}, best_reward {best_reward:.2f}"
                     )

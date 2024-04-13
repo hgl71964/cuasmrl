@@ -1,3 +1,7 @@
+import argparse
+from dataclasses import dataclass, field
+from typing import Optional
+
 import os
 import random
 import numpy as np
@@ -10,18 +14,99 @@ from cuasmrl.jit import jit
 from cuasmrl.autotuner import autotune as fgk_autotune
 from cuasmrl.utils.gpu_utils import get_gpu_name
 
-from absl import app
-from absl import flags
-
 # yapf: disable
-FLAGS = flags.FLAGS
+@dataclass
+class Config:
+    # Kernel
+    default_out_path: str = "data"
+    seed: int = 1337
+    n_tests: int = 2
+    load: Optional[str] = None
+    bench: int = 0
 
-flags.DEFINE_integer("seed", 1337, "")
-flags.DEFINE_integer("wl", 1024, "workload of chosen")
-flags.DEFINE_integer("factor", 4, "")
-flags.DEFINE_integer("n_tests", 100, "num test samples")
-flags.DEFINE_string("load", None, "")
-flags.DEFINE_integer("bench", 0, "whether to bench")
+    # Workload
+    wl: int = 512
+    factor: int = 4
+
+    # RL
+    train: int = 1
+    log: int = 1
+    verbose: int = 0
+    ## Env
+    env_id: str = 'cuasmenv-v0'
+    num_env: int = 1
+    num_iterations: int = int(1e3)
+    minibatch_size: int = 8
+    horizon: int = 32
+    num_steps: int = 64
+    normalize_reward: int = 0
+    ckpt_freq: int = 100
+    ## Agent
+    agent: str = "ppo"
+    weights_path: Optional[str] = None
+    agent_id: Optional[str] = None
+    anneal_lr: int = 1
+    gae: int = 1
+    norm_adv: int = 1
+    clip_vloss: int = 1
+    update_epochs: int = 4
+    lr: float = 2.5e-4
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+    clip_coef: float = 0.2
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+    max_grad_norm: float = 0.5
+    target_kl: Optional[float] = None
+    gpu: int = 0
+
+
+def parse_args() -> Config:
+    parser = argparse.ArgumentParser(description="???")
+
+    # Add arguments to the parser
+    parser.add_argument("--default_out_path", type=str, default="data")
+    parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--n_tests", type=int, default=2)
+    parser.add_argument("--load", type=str)
+    parser.add_argument("--bench", type=int, default=0)
+
+    parser.add_argument("--wl", type=int, default=512)
+    parser.add_argument("--factor", type=int, default=4)
+
+    parser.add_argument("-t", "--train", type=int, dest="train", default=1)
+    parser.add_argument("-l", "--log", type=int, dest="log", default=1)
+    parser.add_argument("--verbose", type=int, default=0)
+
+    parser.add_argument("--env_id", type=str, default='cuasmenv-v0')
+    parser.add_argument("--num_iterations", type=int, default=int(1e3))
+    parser.add_argument("--minibatch_size", type=int, default=8)
+    parser.add_argument("--horizon", type=int, dest="horizon", default=32)
+    parser.add_argument("--num_steps", type=int, default=64)
+    parser.add_argument("--normalize_reward", type=int, default=0)
+    parser.add_argument("--ckpt_freq", type=int, default=100)
+
+    parser.add_argument("--agent", type=str, default="ppo")
+    parser.add_argument("--weights_path", type=str)
+    parser.add_argument("--agent_id", type=str)
+    parser.add_argument("--anneal_lr", type=int, default=1)
+    parser.add_argument("--gae", type=int, default=1)
+    parser.add_argument("--norm_adv", type=int, default=1)
+    parser.add_argument("--clip_vloss", type=int, default=1)
+    parser.add_argument("--update_epochs", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=2.5e-4)
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--gae_lambda", type=float, default=0.95)
+    parser.add_argument("--clip_coef", type=float, default=0.2)
+    parser.add_argument("--ent_coef", type=float, default=0.01)
+    parser.add_argument("--vf_coef", type=float, default=0.5)
+    parser.add_argument("--max_grad_norm", type=float, default=0.5)
+    parser.add_argument("--target_kl", type=float)
+    parser.add_argument("--gpu", type=int, default=0)
+
+    args = parser.parse_args()
+    config = Config(**vars(args))
+    return config
 
 GPU = get_gpu_name()
 
@@ -47,19 +132,24 @@ def matmul(a, b, c, kernel, M, N, K, grid, load, activation=""):
     return c
 
 
-def main(_):
+def main():
 
-    random.seed(FLAGS.seed)
-    np.random.seed(FLAGS.seed)
-    torch.manual_seed(FLAGS.seed)
+    config = parse_args()
 
-    wl= FLAGS.wl
-    factor = FLAGS.factor
+    random.seed(config.seed)
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+
+    wl= config.wl
+    factor = config.factor
     M, N, K = wl, wl, wl * factor
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
     c_ref = torch.empty((M, N), device=a.device, dtype=a.dtype)
+
+    config.total_flops = M*N*2*K
+    config.save_dir=f'{GPU}/mm_leakyRelu/{M}_{N}_{K}'
 
     @fgk_autotune(
         configs=[
@@ -83,11 +173,8 @@ def main(_):
                         num_warps=2),
         ],
         key=['M', 'N', 'K'],
-        seed=FLAGS.seed,
-        save_dir=f'mm_leakyRelu/{M}_{N}_{K}',
         ret_ptr=2,
-        total_flops=M*N*2*K,
-        n_test_samples=FLAGS.n_tests,
+        drl_config=config,
     )
     @jit
     def matmul_kernel(
@@ -278,12 +365,12 @@ def main(_):
         )
         return c
 
-    if FLAGS.load is None:
+    if config.load is None:
         load_dir = None
-    elif FLAGS.load == "auto":
+    elif config.load == "auto":
         load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
     else:
-        load_dir = FLAGS.load
+        load_dir = config.load
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
     sip_out = matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu")
     triton_output = triton_matmul(a, b, c_ref, M, N, K, grid, "leaky_relu")
@@ -298,7 +385,7 @@ def main(_):
         print("❌ Triton and SIP differ")
 
     # benchmark
-    if not bool(FLAGS.bench):
+    if not bool(config.bench):
         print('SKIP bench...')
         return
 
@@ -333,12 +420,12 @@ def main(_):
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
         c = torch.empty((M, N), device=a.device, dtype=a.dtype)
         grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
-        if FLAGS.load is None:
+        if config.load is None:
             load_dir = None
-        elif FLAGS.load == "auto":
+        elif config.load == "auto":
             load_dir = f'data/{GPU}/mm_leakyRelu/{M}_{N}_{K}'
         else:
-            load_dir = FLAGS.load
+            load_dir = config.load
         quantiles = None
 
         if provider == 'cublas':
@@ -354,7 +441,7 @@ def main(_):
     if isinstance(df, list):
         assert len(df) == 1, f'expected 1 row, got {len(df)}'
         df = df[0]
-    fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}_{FLAGS.seed}.pkl"
+    fp = f"data/{GPU}/results/mm_leakyReLU/{M}_{N}_{K}_{config.seed}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/mm_leakyReLU"):
             os.makedirs(f"data/{GPU}/results/mm_leakyReLU")
@@ -362,4 +449,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-    app.run(main)
+    main()
