@@ -260,7 +260,7 @@ class ASMJITFunction(JITFunction):
                     CompiledKernel.launch_enter_hook,
                     CompiledKernel.launch_exit_hook,  # 
                     cubin_dir_path=load_dir,
-                    n_test_samples=self.n_test_samples,
+                    n_test_samples=self.drl_config.n_tests,
                 )
             warn = '\033[93m'
             end = '\033[0m'
