@@ -229,3 +229,120 @@ def autotune(
         )
 
     return decorator
+
+
+class TrionAutotunerWithCache(TritonAutotuner):
+    '''directly read cached config to make sure
+    kernel parameters match!'''
+
+    def __init__(
+        self,
+        fn,
+        arg_names,
+        configs,
+        key,
+        reset_to_zero,
+        restore_value,
+        prune_configs_by,
+        warmup,
+        rep,
+        drl_config,
+    ):
+        super().__init__(
+            fn,
+            arg_names,
+            configs,
+            key,
+            reset_to_zero,
+            restore_value,
+            prune_configs_by,
+            warmup=warmup,
+            rep=rep,
+        )
+        self.cache_config = None
+        self.save_dir = os.path.join(drl_config.default_out_path,
+                                     drl_config.save_dir)
+
+    def _exist_config(self) -> bool:
+        dir_path = self.save_dir
+        if not os.path.exists(dir_path):
+            return False
+
+        cache_path = f'{dir_path}/cache_config.pkl'
+        if os.path.isfile(cache_path):
+            with open(cache_path, 'rb') as f:
+                self.cache_config = pickle.load(f)
+            return True
+        return False
+
+    def run(self, *args, **kwargs):
+        self.nargs = dict(zip(self.arg_names, args))
+
+        if self.cache_config is not None:
+            # cached
+            config = self.cache_config
+        elif len(self.configs) == 1:
+            # heuristic
+            config = self.configs[0]
+        elif self._exist_config():
+            # file IO, NOTE in benchmark, don't do it
+            config = self.cache_config
+        else:
+            all_args = {**self.nargs, **kwargs}
+            _args = []
+            for name in self.arg_names:
+                if name in all_args:
+                    _args.append(all_args[name])
+            key = [_args[i] for i in self.key_idx]
+            for arg in _args:
+                if hasattr(arg, "dtype"):
+                    key.append(str(arg.dtype))
+            key = tuple(key)
+            if key not in self.cache:
+                # prune configs
+                pruned_configs = self.prune_configs(kwargs)
+                bench_start = time.time()
+                timings = {
+                    config: self._bench(*args, config=config, **kwargs)
+                    for config in pruned_configs
+                }
+                bench_end = time.time()
+                self.bench_time = bench_end - bench_start
+                self.cache[key] = builtins.min(timings, key=timings.get)
+                self.pre_hook(args, reset_only=True)
+                self.configs_timings = timings
+            config = self.cache[key]
+
+        self.best_config = config
+        full_nargs = {**self.nargs, **kwargs, **self.best_config.kwargs}
+        if config.pre_hook is not None:
+            config.pre_hook(full_nargs)
+        ret = self.fn.run(
+            *args,
+            num_warps=config.num_warps,
+            num_stages=config.num_stages,
+            num_ctas=config.num_ctas,
+            enable_warp_specialization=config.enable_warp_specialization,
+            **kwargs,
+            **config.kwargs,
+        )
+        self.nargs = None
+        return ret
+
+
+def triton_autotune_with_cache(configs,
+                               key,
+                               drl_config,
+                               prune_configs_by=None,
+                               reset_to_zero=None,
+                               restore_value=None,
+                               warmup=25,
+                               rep=100):
+
+    def decorator(fn):
+        return TrionAutotunerWithCache(fn, fn.arg_names, configs, key,
+                                       reset_to_zero, restore_value,
+                                       prune_configs_by, warmup, rep,
+                                       drl_config)
+
+    return decorator
