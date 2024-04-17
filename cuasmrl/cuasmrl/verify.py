@@ -5,6 +5,8 @@ from copy import deepcopy
 import numpy as np
 import torch
 
+from tqdm import tqdm
+
 # mutation
 from cuasmrl.utils.logger import get_logger
 
@@ -136,7 +138,7 @@ def test_via_cubin(
     grid_0,
     grid_1,
     grid_2,
-    stream,  # 
+    stream,  #
     enter_hook,
     exit_hook,
     cubin,
@@ -180,7 +182,12 @@ def test_via_cubin(
         # use hint to generate test cases dynamically
         kernel = fgk_CompiledKernel(so_path, metadata, asm)
         okss = []
-        for _ in range(0, n_test_samples, test_batch_size):
+
+        loops = range(0, n_test_samples, test_batch_size)
+        if verbose:
+            loops = tqdm(loops)
+
+        for _ in loops:
             test_samples = gen_test_samples(
                 kernel,
                 non_constexpr_arg_values,
