@@ -278,7 +278,7 @@ def main():
         key=['M', 'N', 'K'],
     )
     @triton.jit
-    def triton_matmul_kernel(
+    def tt_kernel(
             # Pointers to matrices
             a_ptr, b_ptr, c_ptr,
             # Matrix dimensions
@@ -354,8 +354,8 @@ def main():
         c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
         tl.store(c_ptrs, c, mask=c_mask)
 
-    def triton_matmul(a, b, c, M, N, K, grid, activation=""):
-        triton_matmul_kernel[grid](
+    def tt_matmul(a, b, c, M, N, K, grid, activation=""):
+        tt_kernel[grid](
             a, b, c,  #
             M, N, K,  #
             a.stride(0), a.stride(1),  #
@@ -373,7 +373,7 @@ def main():
         load_dir = config.load
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
     sip_out = matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu")
-    triton_output = triton_matmul(a, b, c_ref, M, N, K, grid, "leaky_relu")
+    triton_output = tt_matmul(a, b, c_ref, M, N, K, grid, "leaky_relu")
     torch_output = torch.nn.functional.leaky_relu(torch.matmul(a, b))
 
     # print(f"sip_out={sip_out}")
@@ -433,7 +433,7 @@ def main():
         if provider == 'fgk':
             ms = triton.testing.do_bench(lambda: matmul(a, b, c, matmul_kernel, M, N, K, grid, load_dir, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         if provider == 'triton':
-            ms = triton.testing.do_bench(lambda: triton_matmul(a, b, c, M, N, K, grid, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
+            ms = triton.testing.do_bench(lambda: tt_matmul(a, b, c, M, N, K, grid, "leaky_relu"), warmup=100, rep=100, quantiles=quantiles)
         perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         return perf(ms)
 
