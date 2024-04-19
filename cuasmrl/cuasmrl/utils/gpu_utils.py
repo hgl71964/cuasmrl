@@ -80,6 +80,19 @@ def get_st_window(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
+def check_adj_opcodes(cc, prev_opcode, cur_opcode):
+    if cc == (7, 5):
+        return True
+    elif cc == (8, 0):
+        if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
+                'LDGSTS'):
+            # it seems LDGSTS follows certain order
+            return False
+        return True
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
 def get_gpu_name():
     try:
         output = subprocess.check_output(
