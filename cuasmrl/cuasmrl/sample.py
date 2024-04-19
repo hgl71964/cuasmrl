@@ -292,7 +292,7 @@ class Sample:
         # ban ops
         elif p_opcode in BAN_OPS:
             mask[0] = 0
-        elif not check_adj_opcodes(CC, p_opcode, opcode):
+        elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst):
             mask[0] = 0
         else:
             # scoreboard
@@ -368,7 +368,7 @@ class Sample:
         # ban ops
         elif p_opcode in BAN_OPS:
             mask[1] = 0
-        elif not check_adj_opcodes(CC, opcode, p_opcode):
+        elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest):
             mask[1] = 0
         else:
             # scoreboard
