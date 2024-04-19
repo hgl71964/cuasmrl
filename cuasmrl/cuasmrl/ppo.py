@@ -185,6 +185,7 @@ def env_loop(env, config):
     if latest_ckpt is None:
         start_iteration = 1
         global_step = 0
+        best_reward = 0
     else:
         latest_ckpt_path = os.path.join(save_path, latest_ckpt)
         ckpt = torch.load(latest_ckpt_path)
@@ -192,6 +193,7 @@ def env_loop(env, config):
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_iteration = ckpt['iteration'] + 1
         global_step = ckpt['global_step']
+        best_reward = ckpt['best_reward']
 
     if start_iteration >= config.num_iterations:
         info = {'status': Status.OK}  # will skip the loop
@@ -227,7 +229,6 @@ def env_loop(env, config):
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(config.num_env).to(device)
 
-    best_reward = 0
     for iteration in range(start_iteration, config.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if anneal_lr:
@@ -442,6 +443,7 @@ def env_loop(env, config):
                         'global_step': global_step,
                         'model_state_dict': agent.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
+                        'best_reward': best_reward,
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
                 logger.warning(
                     f'save {config.agent} at {iteration} for segfault')
@@ -452,6 +454,7 @@ def env_loop(env, config):
                         'global_step': global_step,
                         'model_state_dict': agent.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
+                        'best_reward': best_reward,
                     }, f"{save_path}/{config.agent}_ckpt_{iteration}.pt")
                 logger.info(f'save {config.agent} at {iteration}')
 
