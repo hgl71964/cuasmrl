@@ -40,24 +40,26 @@ pip install -U --index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/
 git clone https://github.com/openai/triton.git;
 cd triton;
 
-pip install ninja cmake wheel; # build-time dependencies
-pip install -e python
-```
-
-Or with a virtualenv:
-
-```
-git clone https://github.com/openai/triton.git;
-cd triton;
-
 python -m venv .venv --prompt triton;
 source .venv/bin/activate;
 
 pip install ninja cmake wheel; # build-time dependencies
 pip install -e python
+
+
+pip install pyelftools
+
+pip install tensorboard
+
+
+
+
+https://github.com/hgl71964/CuAssembler.git
+
+export PYTHONPATH={path-to-CuAssembler}:{path-to-CuAssembler/bin}:{path-to-CuAssembler/CuAsm}
 ```
 
-# Building 
+# Building
 
 1. build triton; in setup, ensure the ptxas, cuobjdump etc version matches the host version
 
