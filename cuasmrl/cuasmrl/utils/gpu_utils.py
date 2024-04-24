@@ -12,6 +12,14 @@ MUTATABLE_OPS = {
         ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
         ['LDGDEPBAR', 'DEPBAR'],  # ban_ops
     ),
+    # RTX3000
+    (8, 6): (
+        # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
+        ['LDG', 'STG'],
+        # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
+        ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
+    ),
+    # A100
     (8, 0): (
         # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
         ['LDG', 'STG'],
@@ -54,6 +62,8 @@ def get_min_stall_count(cc, opcode):
         return 7
     elif cc == (8, 0):
         return 13
+    elif cc == (8, 6):
+        return 13
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
@@ -67,6 +77,8 @@ def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
             return src, [tmp_dst]
     elif cc == (8, 0):
         return src, [tmp_dst]
+    elif cc == (8, 6):
+        return src, [tmp_dst]
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
@@ -76,6 +88,8 @@ def get_st_window(cc):
         return 10
     elif cc == (8, 0):
         return 8
+    elif cc == (8, 6):
+        return 8
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
@@ -84,6 +98,13 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
     if cc == (7, 5):
         return True
     elif cc == (8, 0):
+        if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
+                'LDGSTS'):
+            if prev_dst == cur_dst:
+                # it seems LDGSTS follows certain order
+                return False
+        return True
+    elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
                 'LDGSTS'):
             if prev_dst == cur_dst:
