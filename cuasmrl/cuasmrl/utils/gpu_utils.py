@@ -103,6 +103,10 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
+        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+            return False
+        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+            return False
         return True
     elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
@@ -110,6 +114,10 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
+        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+            return False
+        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+            return False
         return True
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')

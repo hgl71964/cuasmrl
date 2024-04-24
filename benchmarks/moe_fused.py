@@ -31,7 +31,7 @@ class Config:
 
     # Workload
     m: int = 512
-    n: int = 14336
+    n: int = 7168
     k: int = 4096
     e: int = 8
     topk: int = 2
@@ -80,7 +80,7 @@ def parse_args() -> Config:
     parser.add_argument("--bench", type=int, default=0)
 
     parser.add_argument("--m", type=int, default=512)
-    parser.add_argument("--n", type=int, default=8192)
+    parser.add_argument("--n", type=int, default=7168)
     parser.add_argument("--k", type=int, default=4096)
     parser.add_argument("--e", type=int, default=8)
     parser.add_argument("--topk", type=int, default=2)
@@ -418,6 +418,8 @@ if __name__ == '__main__':
         triton.Config(triton_config),
     ],
     key=['top_k'],
+    ret_ptr=2,
+    drl_config=config,
     )
     @jit
     def cuasmrl_moe_kernel(
