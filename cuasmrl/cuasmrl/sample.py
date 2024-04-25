@@ -291,7 +291,7 @@ class Sample:
         elif dst in p_src:
             mask[0] = 0
         # ban ops
-        elif not check_ban_opcode(p_opcode):
+        elif not check_ban_opcode(CC, p_opcode):
             mask[0] = 0
         elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst):
             mask[0] = 0
@@ -370,7 +370,7 @@ class Sample:
         elif p_dest in src:
             mask[1] = 0
         # ban ops
-        elif not check_ban_opcode(p_opcode):
+        elif not check_ban_opcode(CC, p_opcode):
             mask[1] = 0
         elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest):
             mask[1] = 0
