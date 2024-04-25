@@ -15,6 +15,8 @@ from cuasmrl.jit import jit
 from cuasmrl.autotuner import autotune as fgk_autotune
 from cuasmrl.utils.gpu_utils import get_gpu_name, get_gpu_cc
 
+from cuasmrl.bench import do_bench
+
 # yapf: disable
 @dataclass
 class Config:
@@ -661,7 +663,8 @@ def main():
                 o = fn()
                 do = torch.randn_like(o)
                 fn = lambda: o.backward(do, retain_graph=True)
-            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            # ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            ms = do_bench(fn, warmup=warmup, rep=rep)
         if provider == "triton":
             q = torch.randn((BATCH, H, N_CTX, D_HEAD),
                             dtype=dtype,
@@ -690,7 +693,8 @@ def main():
                 o = fn()
                 do = torch.randn_like(o)
                 fn = lambda: o.backward(do, retain_graph=True)
-            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            # ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            ms = do_bench(fn, warmup=warmup, rep=rep)
         if provider == "flash":
             qkv = torch.randn((BATCH, N_CTX, 3, H, D_HEAD),
                               dtype=dtype,
@@ -701,7 +705,8 @@ def main():
                 o = fn()
                 do = torch.randn_like(o)
                 fn = lambda: o.backward(do, retain_graph=True)
-            ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            # ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
+            ms = do_bench(fn, warmup=warmup, rep=rep)
         flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
         total_flops = 2 * flops_per_matmul
         if causal:
