@@ -277,6 +277,7 @@ class Sample:
             ctrl_code)
         r = -1 if r[1] == '-' else int(r[1])
         w = -1 if w[1] == '-' else int(w[1])
+        barrier = set(waits + [r] + [w])
 
         # if MemOp were to move up
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -296,11 +297,14 @@ class Sample:
             mask[0] = 0
         else:
             # scoreboard
-            _, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
+            p_wait, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
                 p_ctrl_code)
             p_r = -1 if p_r[1] == '-' else int(p_r[1])
             p_w = -1 if p_w[1] == '-' else int(p_w[1])
-            if p_r in waits or p_w in waits:
+            p_barrier = p_wait + [p_r] + [p_w]
+            # if p_r in waits or p_w in waits:
+            #     mask[0] = 0
+            if len(barrier.intersection(p_barrier)) != 0:
                 mask[0] = 0
 
             # stall count
@@ -372,8 +376,9 @@ class Sample:
             mask[1] = 0
         else:
             # scoreboard
-            p_wait, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
-            if r in p_wait or w in p_wait:
+            p_wait, p_r, p_w, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
+            p_barrier = p_wait + [p_r] + [p_w]
+            if len(barrier.intersection(p_barrier)) != 0:
                 mask[1] = 0
 
             # stall count
