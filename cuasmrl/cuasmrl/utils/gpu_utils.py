@@ -94,6 +94,33 @@ def get_st_window(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
+def check_ban_opcode(cc, opcode):
+    if cc == (7, 5):
+        return True
+    elif cc == (8, 0):
+        if opcode.startswith('LDGDEPBAR'):
+            return False
+        elif opcode.startswith('DEPBAR'):
+            return False
+        elif opcode.startswith('EXIT'):
+            return False
+        elif opcode.startswith('BAR.SYNC'):
+            return False
+        return True
+    elif cc == (8, 6):
+        if opcode.startswith('LDGDEPBAR'):
+            return False
+        elif opcode.startswith('DEPBAR'):
+            return False
+        elif opcode.startswith('EXIT'):
+            return False
+        elif opcode.startswith('BAR.SYNC'):
+            return False
+        return True
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
 def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
     if cc == (7, 5):
         return True

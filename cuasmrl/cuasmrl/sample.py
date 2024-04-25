@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes, check_ban_opcode
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
@@ -291,7 +291,7 @@ class Sample:
         elif dst in p_src:
             mask[0] = 0
         # ban ops
-        elif p_opcode in BAN_OPS:
+        elif not check_ban_opcode(p_opcode):
             mask[0] = 0
         elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst):
             mask[0] = 0
@@ -370,7 +370,7 @@ class Sample:
         elif p_dest in src:
             mask[1] = 0
         # ban ops
-        elif p_opcode in BAN_OPS:
+        elif not check_ban_opcode(p_opcode):
             mask[1] = 0
         elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest):
             mask[1] = 0
