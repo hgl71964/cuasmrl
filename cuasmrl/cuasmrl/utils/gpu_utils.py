@@ -7,6 +7,7 @@ import subprocess
 # adding GPU ISA probably need to add instruction repository
 # https://github.com/cloudcores/CuAssembler/blob/master/UserGuide.md#instruction-assembler-repository
 
+# deprecated
 MUTATABLE_OPS = {
     (8, 9): (
         ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
@@ -48,9 +49,52 @@ MUTATABLE_OPS = {
 }
 
 
+# deprecated
 def get_mutatable_ops(cc):
     if cc in MUTATABLE_OPS:
         return MUTATABLE_OPS[cc]
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
+def is_mem_op(cc, opcode):
+    if cc == (7, 5):
+        if opcode.startswith('LDG'):
+            return True
+        elif opcode.startswith('STS'):
+            return True
+        elif opcode.startswith('LDS'):
+            return True
+        return False
+    elif cc == (8, 0):
+
+        # ban op
+        if opcode.startswith('LDGDEPBAR'):
+            return False
+
+        # mem op
+        elif opcode.startswith('LDGSTS'):
+            return True
+        elif opcode.startswith('LDG'):
+            return True
+        elif opcode.startswith('STG'):
+            return True
+        return False
+
+    elif cc == (8, 6):
+        # ban op
+        if opcode.startswith('LDGDEPBAR'):
+            return False
+
+        # mem op
+        elif opcode.startswith('LDGSTS'):
+            return True
+        elif opcode.startswith('LDG'):
+            return True
+        elif opcode.startswith('STG'):
+            return True
+        return False
+
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 

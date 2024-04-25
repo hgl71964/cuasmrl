@@ -3,12 +3,10 @@ from copy import deepcopy
 
 import numpy as np
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes, check_ban_opcode
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes, check_ban_opcode, is_mem_op
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
-MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
-MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
 ST_WINDOW = get_st_window(CC)
 
 logger = get_logger(__name__)
@@ -98,6 +96,8 @@ class Sample:
         # lines = []
         kernel_lineno_cnt = 0
         mem_loc = {}
+        predicate_loc = {}
+        opcode_loc = {}
         max_src_len = 0
         for i, line in enumerate(self.kernel_section):
             line = line.strip()
@@ -119,31 +119,23 @@ class Sample:
                         mem_loc[s] = len(mem_loc)
                 max_src_len = max(max_src_len, len(src))
 
-                # determine if MemOp;
-                # opcode is like: LDG.E.128.SYS; i.e. {inst}.{modifier*}
-                ban = False
-                for op in BAN_OPS:
-                    if op in opcode:
-                        ban = True
-                        break
-                if ban:
-                    if debug:
-                        logger.warning(f'ban {ctrl_code} {opcode}')
-                    continue
+                # ingeralize predicate
+                if predicate not in predicate_loc:
+                    predicate_loc[predicate] = len(predicate_loc)
 
-                for op in MEMORY_OPS:
-                    if op in opcode:
-                        if debug:
-                            logger.info(f'mutable {ctrl_code} {opcode}')
-                        self.candidates.append(i)
-                        # lines.append(line)
-                        break
+                # ingeralize opcode
+                if opcode not in opcode_loc:
+                    opcode_loc[opcode] = len(opcode_loc)
+                # opcode is like: LDG.E.128.SYS; i.e. {inst}.{modifier*}
+                if is_mem_op(CC, opcode):
+                    self.candidates.append(i)
 
         # dimension of the optimization problem
         self.dims = len(self.candidates)
-        return self.dims, kernel_lineno_cnt, mem_loc, max_src_len
+        return self.dims, kernel_lineno_cnt, mem_loc, max_src_len, predicate_loc, opcode_loc
 
-    def embedding(self, space, mem_loc, max_src_len):
+    def embedding(self, space, mem_loc, max_src_len, predicate_loc,
+                  opcode_loc):
         self.candidates.clear()
         masks = []
         *_, H, W = space.shape
@@ -159,9 +151,9 @@ class Sample:
                     # a label
                     continue
 
-                op_embed = self.embed_opcode(opcode)
+                op_embed = self.embed_opcode(opcode, opcode_loc)
                 embed = self.embed_ctrl_code(ctrl_code) + \
-                        self.embed_predicate(predicate) + \
+                        self.embed_predicate(predicate, predicate_loc) + \
                         op_embed + \
                         self.embed_dst(dst, mem_loc) + \
                         self.embed_src(src, mem_loc, max_src_len)
@@ -170,7 +162,7 @@ class Sample:
                 cnt += 1
 
                 # only memory ops are considered mutable candidates
-                if op_embed[0] != -1:
+                if is_mem_op(CC, opcode):
                     self.candidates.append(lineno)
                     # TODO check bound of kernel_section?
                     mask = self._generate_mask(
@@ -196,68 +188,39 @@ class Sample:
         barr = []
         for i in range(6):
             if i in waits:
-                barr.append(i)
+                barr.append(i / 6)  # normalize
             else:
                 barr.append(-1)
-        r = -1 if r[1] == '-' else int(r[1])
-        w = -1 if w[1] == '-' else int(w[1])
+        r = -1 if r[1] == '-' else int(r[1]) / 6
+        w = -1 if w[1] == '-' else int(w[1]) / 6
 
         yield_flag = 1 if yield_flag == 'Y' else 0
-        stall_count = int(stall_count[1:-1])
+        stall_count = int(stall_count[1:-1]) / 16  # normalize
         return barr + [r, w, yield_flag, stall_count]
 
-    def embed_predicate(self, predicate):
+    def embed_predicate(self, predicate, predicate_loc):
         if predicate is None:
-            return [0]
-        return [1]
+            return [-1]
+        return [predicate_loc[predicate] / len(predicate_loc)]
 
-    def embed_opcode(self, opcode):
+    def embed_opcode(self, opcode, opcode_loc):
         # opcode is like: LDG.E.128.SYS
         # i.e. {inst}.{modifier*}
-        memory_op = -1
-        ban = False
-        for op in BAN_OPS:
-            if op in opcode:
-                ban = True
-                break
-
-        if not ban:
-            for op in MEMORY_OPS:
-                if op in opcode:
-                    memory_op = MEMORY_OPS_INDEX[op]
-                    # memory_op = 1
-                    break
-        return [memory_op]
+        return [opcode_loc[opcode] / len(opcode_loc)]
 
     def embed_dst(self, dst, mem_loc):
         if dst is None:
             return [-1]
-
-        # debug
-        # if dst not in mem_loc:
-        #     for k, _ in mem_loc.items():
-        #         print(k)
-        #     raise RuntimeError(f'unknown memory location: {dst}')
 
         # build
         total = len(mem_loc)
         return [mem_loc[dst] / total]
 
     def embed_src(self, src, mem_loc, max_src_len):
-
-        # debug
-        # for s in src:
-        #     if s not in mem_loc:
-        #         for k, _ in mem_loc.items():
-        #             print(k)
-        #         raise RuntimeError(f'unknown memory location: {s}')
-
-        # build
         total = len(mem_loc)
         embedding = [mem_loc[s] / total for s in src]
         diff = max_src_len - len(embedding)
         padding = [-1] * diff
-
         return embedding + padding
 
     def _generate_mask(

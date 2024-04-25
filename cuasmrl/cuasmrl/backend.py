@@ -70,11 +70,14 @@ class Env(gym.Env):
 
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
-        dims, total, mem_loc, max_src_len = sample.get_mutable()
+        dims, total, mem_loc, max_src_len, predicate_loc, opcode_loc = sample.get_mutable(
+        )
         logger.info(
             f'[INIT] dims: {dims}; total kernel lineno: {total}; mem_loc: {len(mem_loc)}; max_src_len: {max_src_len};'
         )
         self.mem_loc = mem_loc
+        self.predicate_loc = predicate_loc
+        self.opcode_loc = opcode_loc
         self.max_src_len = max_src_len  # because src is variable
 
         # n line, each line can move up or down; total number unchanged throughout rollouts
@@ -213,19 +216,15 @@ class Env(gym.Env):
 
         if self.profile:
             t1 = time.time()
-            state = self.sample.embedding(
-                self.observation_space,
-                self.mem_loc,
-                self.max_src_len,
-            )
+            state = self.sample.embedding(self.observation_space, self.mem_loc,
+                                          self.max_src_len, self.predicate_loc,
+                                          self.opcode_loc)
             t2 = time.time()
             logger.info(f'[BUILD STATE] {t2-t1:.2f}s')
         else:
-            state = self.sample.embedding(
-                self.observation_space,
-                self.mem_loc,
-                self.max_src_len,
-            )
+            state = self.sample.embedding(self.observation_space, self.mem_loc,
+                                          self.max_src_len, self.predicate_loc,
+                                          self.opcode_loc)
         return state
 
 
