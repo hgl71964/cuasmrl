@@ -83,7 +83,7 @@ def is_mem_op(cc, opcode):
     if cc == (7, 5):
         if opcode.startswith('LDG'):
             return True
-        elif opcode.startswith('STS'):
+        elif opcode.startswith('STG'):
             return True
         elif opcode.startswith('LDS'):
             return True

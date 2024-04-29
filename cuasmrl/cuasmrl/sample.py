@@ -181,7 +181,8 @@ class Sample:
                 cnt += 1
 
                 # only memory ops are considered mutable candidates
-                if is_mem_op(CC, opcode):
+                # if is_mem_op(CC, opcode):
+                if op_embed[0] > -1:  ## hacky fix in this op embedding scheme
                     self.candidates.append(lineno)
                     # TODO check bound of kernel_section?
                     mask = self._generate_mask(
