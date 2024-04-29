@@ -6,12 +6,13 @@ from typing import Dict, Union, Optional
 from copy import deepcopy
 from collections import defaultdict, namedtuple
 
-from triton.testing import do_bench
+# from triton.testing import do_bench
 from triton.runtime.autotuner import Autotuner as TritonAutotuner
 from triton.runtime.autotuner import OutOfResources
 
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.gpu_utils import get_gpu_name
+from cuasmrl.bench import do_bench
 
 logger = get_logger(__name__)
 
@@ -87,10 +88,16 @@ class Autotuner(TritonAutotuner):
 
         try:
             # this populates data to the ret_ptr
-            return do_bench(kernel_call,
-                            warmup=self.warmup,
-                            rep=self.rep,
-                            quantiles=(0.5, 0.2, 0.8))
+            # return do_bench(kernel_call,
+            #                 warmup=self.warmup,
+            #                 rep=self.rep,
+            #                 quantiles=(0.5, 0.2, 0.8))
+            ms = do_bench(
+                kernel_call,
+                warmup=100,
+                rep=100,
+            )
+            return [ms, ms, ms]
         except OutOfResources:
             return [float("inf"), float("inf"), float("inf")]
 

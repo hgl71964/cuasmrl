@@ -7,6 +7,8 @@ from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
+MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
+MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
 ST_WINDOW = get_st_window(CC)
 
 logger = get_logger(__name__)
@@ -127,8 +129,25 @@ class Sample:
                 if opcode not in opcode_loc:
                     opcode_loc[opcode] = len(opcode_loc)
                 # opcode is like: LDG.E.128.SYS; i.e. {inst}.{modifier*}
-                if is_mem_op(CC, opcode):
-                    self.candidates.append(i)
+                # if is_mem_op(CC, opcode):
+                #     self.candidates.append(i)
+                ban = False
+                for op in BAN_OPS:
+                    if op in opcode:
+                        ban = True
+                        break
+                if ban:
+                    if debug:
+                        logger.warning(f'ban {ctrl_code} {opcode}')
+                    continue
+
+                for op in MEMORY_OPS:
+                    if op in opcode:
+                        if debug:
+                            logger.info(f'mutable {ctrl_code} {opcode}')
+                        self.candidates.append(i)
+                        # lines.append(line)
+                        break
 
         # dimension of the optimization problem
         self.dims = len(self.candidates)
@@ -199,14 +218,31 @@ class Sample:
         return barr + [r, w, yield_flag, stall_count]
 
     def embed_predicate(self, predicate, predicate_loc):
+        # if predicate is None:
+        #     return [-1]
+        # return [predicate_loc[predicate] / len(predicate_loc)]
         if predicate is None:
-            return [-1]
-        return [predicate_loc[predicate] / len(predicate_loc)]
+            return [0]
+        return [1]
 
     def embed_opcode(self, opcode, opcode_loc):
         # opcode is like: LDG.E.128.SYS
         # i.e. {inst}.{modifier*}
-        return [opcode_loc[opcode] / len(opcode_loc)]
+        # return [opcode_loc[opcode] / len(opcode_loc)]
+        memory_op = -1
+        ban = False
+        for op in BAN_OPS:
+            if op in opcode:
+                ban = True
+                break
+
+        if not ban:
+            for op in MEMORY_OPS:
+                if op in opcode:
+                    memory_op = MEMORY_OPS_INDEX[op]
+                    # memory_op = 1
+                    break
+        return [memory_op]
 
     def embed_dst(self, dst, mem_loc):
         if dst is None:
