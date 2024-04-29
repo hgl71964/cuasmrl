@@ -47,9 +47,8 @@ pip install ninja cmake wheel; # build-time dependencies
 pip install -e python
 
 
-pip install pyelftools
+pip install pyelftools tensorboard tqdm gymnasium
 
-pip install tensorboard
 
 
 
