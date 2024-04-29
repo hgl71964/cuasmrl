@@ -252,6 +252,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
+        elif prev_opcode.startswith('LDSM') and cur_opcode.startswith('LDSM'):
+            if set(prev_src).intersection(cur_src):
+                return False
         elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
         elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
