@@ -284,7 +284,7 @@ class Sample:
         if p_ctrl_code is None:
             # NOT move across labels
             mask[0] = 0
-        # RAW; WAR
+        # register deps
         elif p_dest in src:
             mask[0] = 0
         elif dst in p_src:
@@ -363,7 +363,7 @@ class Sample:
         if p_ctrl_code is None:
             # NOT move across labels
             mask[1] = 0
-        # RAW; WAR
+        # register deps
         elif dst in p_src:
             mask[1] = 0
         elif p_dest in src:

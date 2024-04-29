@@ -65,7 +65,7 @@ MUTATABLE_OPS = {
             'ULDC',
             'EXIT',
             'BAR.SYNC',
-            'LDSM',
+            # 'LDSM',
         ],
     ),
 }
@@ -181,8 +181,32 @@ def get_st_window(cc):
 
 def check_ban_opcode(cc, opcode):
     if cc == (7, 5):
+        if opcode.startswith('ERRBAR'):
+            return False
+        elif opcode.startswith('MEMBAR'):
+            return False
+        elif opcode.startswith('EXIT'):
+            return False
+        elif opcode.startswith('BAR'):
+            return False
+        elif opcode.startswith('DEPBAR'):
+            return False
+        elif opcode.startswith('ULDC'):
+            return False
         return True
     elif cc == (7, 0):
+        if opcode.startswith('ERRBAR'):
+            return False
+        elif opcode.startswith('MEMBAR'):
+            return False
+        elif opcode.startswith('EXIT'):
+            return False
+        elif opcode.startswith('BAR'):
+            return False
+        elif opcode.startswith('DEPBAR'):
+            return False
+        elif opcode.startswith('ULDC'):
+            return False
         return True
     elif cc == (8, 0):
         if opcode.startswith('LDGDEPBAR'):
