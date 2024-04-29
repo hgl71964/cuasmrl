@@ -24,7 +24,7 @@ MUTATABLE_OPS = {
     # A100
     (8, 0): (
         # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
@@ -129,41 +129,44 @@ def is_mem_op(cc, opcode):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def get_min_stall_count(cc, opcode):
-    if cc == (7, 5):
+def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
+    if cc == (7, 0):
+        # st
+        min_st = 8
         if opcode.startswith('CS2R'):
-            return 19
-        return 7
-    elif cc == (7, 0):
-        if opcode.startswith('CS2R'):
-            return 19
+            min_st = 19
         elif opcode.startswith('LDG'):
-            return 15
-        return 7
-    elif cc == (8, 0):
-        return 8
-    elif cc == (8, 6):
-        return 8
-    else:
-        raise RuntimeError(f'unsupported compute capability: {cc}')
+            min_st = 15
 
+        # hazard
+        if st <= min_st:
+            # write-after-write
+            if dst == tmp_dst:
+                return True
+            # RAW; WAR
+            if dst in tmp_src:
+                return True
+            if tmp_dst in src:
+                return True
 
-def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
-    # some opcodes needs both dst and src ready... so we need to check both
-    if cc == (7, 5):
-        if opcode.startswith('CS2R'):
-            return [dst] + src, [tmp_dst] + tmp_src
-        else:
-            return src, [tmp_dst]
-    elif cc == (7, 0):
-        if opcode.startswith('CS2R'):
-            return [dst] + src, [tmp_dst] + tmp_src
-        else:
-            return src, [tmp_dst]
+        return False
+
     elif cc == (8, 0):
-        return src, [tmp_dst]
-    elif cc == (8, 6):
-        return src, [tmp_dst]
+        # st
+        min_st = 5
+
+        # hazard
+        if st <= min_st:
+            # write-after-write
+            if dst == tmp_dst:
+                return True
+            # RAW; WAR
+            if dst in tmp_src:
+                return True
+            if tmp_dst in src:
+                return True
+
+        return False
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 

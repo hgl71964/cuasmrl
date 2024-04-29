@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes, check_ban_opcode, is_mem_op
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_moveup_deps, get_st_window, check_adj_opcodes, check_ban_opcode, is_mem_op, has_hazard
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
@@ -315,7 +315,7 @@ class Sample:
                     break
 
                 try:
-                    tmp_ctrl, *_, tmp_opcode, _, tmp_src = self.engine.decode(
+                    tmp_ctrl, *_, tmp_opcode, tmp_dest, tmp_src = self.engine.decode(
                         kernel_section[lineno + i].strip())
                 except:
                     # NOTE: decode gets error when (lineno + i) goes out of bounds,
@@ -327,8 +327,8 @@ class Sample:
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 # move down check
-                min_st = get_min_stall_count(CC, p_opcode)
-                if p_dest in tmp_src and total <= min_st:
+                if has_hazard(CC, total, p_opcode, p_dest, p_src, tmp_opcode,
+                              tmp_dest, tmp_src):
                     mask[0] = 0
 
                 stall_count = int(stall_count[1:-1])
@@ -340,7 +340,7 @@ class Sample:
                 if mask[0] == 0:
                     break
 
-                tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+                tmp_ctrl, *_, tmp_opcode, tmp_dest, tmp_src = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
@@ -350,13 +350,9 @@ class Sample:
                 total += stall_count
 
                 # moveup check
-                min_st = get_min_stall_count(CC, tmp_opcode)
-                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
-                                                       tmp_src, dst, src)
-                for consumer in consumers:
-                    if consumer in producers and total <= min_st:
-                        mask[0] = 0
-                        break
+                if has_hazard(CC, total, opcode, dst, src, tmp_opcode,
+                              tmp_dest, tmp_src):
+                    mask[0] = 0
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -388,7 +384,7 @@ class Sample:
                 if mask[1] == 0:
                     break
 
-                tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+                tmp_ctrl, *_, tmp_opcode, tmp_dest, tmp_src = self.engine.decode(
                     kernel_section[lineno - i].strip())
                 if tmp_ctrl is None:
                     # if it is a label, don't care stall count
@@ -397,15 +393,10 @@ class Sample:
 
                 stall_count = int(stall_count[1:-1])
                 total += stall_count
-
                 # moveup check
-                min_st = get_min_stall_count(CC, tmp_opcode)
-                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
-                                                       tmp_src, p_dest, p_src)
-                for consumer in consumers:
-                    if consumer in producers and total <= min_st:
-                        mask[1] = 0
-                        break
+                if has_hazard(CC, total, p_opcode, p_dest, p_src, tmp_opcode,
+                              tmp_dest, tmp_src):
+                    mask[1] = 0
 
             ## for memOp
             total = int(self_stall_count[1:-1])
@@ -414,7 +405,7 @@ class Sample:
                     break
 
                 try:
-                    tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+                    tmp_ctrl, *_, tmp_opcode, tmp_dest, tmp_src = self.engine.decode(
                         kernel_section[lineno + i].strip())
                 except:
                     # NOTE: decode gets error when (lineno + i) goes out of bounds,
@@ -426,8 +417,8 @@ class Sample:
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 # move down check
-                min_st = get_min_stall_count(CC, opcode)
-                if dst in tmp_src and total <= min_st:
+                if has_hazard(CC, total, opcode, dst, src, tmp_opcode,
+                              tmp_dest, tmp_src):
                     mask[1] = 0
 
                 stall_count = int(stall_count[1:-1])
