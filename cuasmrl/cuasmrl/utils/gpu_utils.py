@@ -137,6 +137,8 @@ def get_min_stall_count(cc, opcode):
     elif cc == (7, 0):
         if opcode.startswith('CS2R'):
             return 19
+        elif opcode.startswith('LDG'):
+            return 15
         return 7
     elif cc == (8, 0):
         return 8
