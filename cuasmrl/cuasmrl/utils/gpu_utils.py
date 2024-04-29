@@ -133,8 +133,8 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
     if cc == (7, 0):
         # st
         min_st = 8
-        if opcode.startswith('CS2R'):
-            min_st = 19
+        if tmp_opcode.startswith('LDG'):
+            min_st = 15
         elif opcode.startswith('LDG'):
             min_st = 15
 
