@@ -33,6 +33,7 @@ class Config:
     H: int = 4
     wl: int = 16384
     D_HEAD: int = 64
+    causal: bool = False
 
     # RL
     train: int = 1
@@ -81,6 +82,7 @@ def parse_args() -> Config:
     parser.add_argument("--H", type=int, dest="H", default=4)
     parser.add_argument("--wl", type=int, default=16384)
     parser.add_argument("--dh", type=int, dest="D_HEAD", default=64)
+    parser.add_argument('--causal', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -255,7 +257,7 @@ def main():
                      device="cuda").normal_(mean=0.0,
                                             std=0.5).requires_grad_())
 
-    causal = True
+    causal = config.causal
     flops_per_matmul = 2.0 * Z * H * N_CTX * N_CTX * D_HEAD
     total_flops = 2 * flops_per_matmul
     if causal:
@@ -264,7 +266,7 @@ def main():
 
     # args
     config.total_flops = total_flops
-    config.save_dir = f'{GPU}/flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}'
+    config.save_dir = f'{GPU}/flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}_{causal}'
 
     @triton_autotune_with_cache(
         configs=[
@@ -722,7 +724,7 @@ def main():
     if isinstance(df, list):
         assert len(df) == 1, f'expected 1 row, got {len(df)}'
         df = df[0]
-    fp = f"data/{GPU}/results/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{config.seed}.pkl"
+    fp = f"data/{GPU}/results/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{config.causal}_{config.seed}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/flash_attn"):
             os.makedirs(f"data/{GPU}/results/flash_attn")
