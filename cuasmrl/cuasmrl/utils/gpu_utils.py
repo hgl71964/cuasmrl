@@ -237,10 +237,14 @@ def check_ban_opcode(cc, opcode):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
+def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
+                      cur_src):
     if cc == (7, 5):
         return True
     elif cc == (7, 0):
+        if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
+            if set(prev_src).intersection(cur_src):
+                return False
         return True
     elif cc == (8, 0):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
