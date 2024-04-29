@@ -9,6 +9,7 @@ import subprocess
 
 # deprecated
 MUTATABLE_OPS = {
+    # Ada; XXX not working
     (8, 9): (
         ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
         ['LDGDEPBAR', 'DEPBAR'],  # ban_ops
@@ -27,7 +28,28 @@ MUTATABLE_OPS = {
         # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
+    # turing; RTX 8000
     (7, 5): (
+        # memory_ops
+        [
+            'LDG',
+            'LDS',
+            'STG',
+        ],
+        # ban_ops
+        [
+            'ERRBAR',
+            'MEMBAR',
+            'BAR',
+            'DEPBAR',
+            'ULDC',
+            'EXIT',
+            'BAR.SYNC',
+            'LDSM',
+        ],
+    ),
+    # V100
+    (7, 0): (
         # memory_ops
         [
             'LDG',
@@ -59,6 +81,14 @@ def get_mutatable_ops(cc):
 
 def is_mem_op(cc, opcode):
     if cc == (7, 5):
+        if opcode.startswith('LDG'):
+            return True
+        elif opcode.startswith('STS'):
+            return True
+        elif opcode.startswith('LDS'):
+            return True
+        return False
+    elif cc == (7, 0):
         if opcode.startswith('LDG'):
             return True
         elif opcode.startswith('STS'):
@@ -104,10 +134,14 @@ def get_min_stall_count(cc, opcode):
         if opcode.startswith('CS2R'):
             return 19
         return 7
+    elif cc == (7, 0):
+        if opcode.startswith('CS2R'):
+            return 19
+        return 7
     elif cc == (8, 0):
         return 8
     elif cc == (8, 6):
-        return 13
+        return 8
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
@@ -115,6 +149,11 @@ def get_min_stall_count(cc, opcode):
 def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
     # some opcodes needs both dst and src ready... so we need to check both
     if cc == (7, 5):
+        if opcode.startswith('CS2R'):
+            return [dst] + src, [tmp_dst] + tmp_src
+        else:
+            return src, [tmp_dst]
+    elif cc == (7, 0):
         if opcode.startswith('CS2R'):
             return [dst] + src, [tmp_dst] + tmp_src
         else:
@@ -130,6 +169,8 @@ def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
 def get_st_window(cc):
     if cc == (7, 5):
         return 10
+    elif cc == (7, 0):
+        return 10
     elif cc == (8, 0):
         return 8
     elif cc == (8, 6):
@@ -140,6 +181,8 @@ def get_st_window(cc):
 
 def check_ban_opcode(cc, opcode):
     if cc == (7, 5):
+        return True
+    elif cc == (7, 0):
         return True
     elif cc == (8, 0):
         if opcode.startswith('LDGDEPBAR'):
@@ -167,6 +210,8 @@ def check_ban_opcode(cc, opcode):
 
 def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
     if cc == (7, 5):
+        return True
+    elif cc == (7, 0):
         return True
     elif cc == (8, 0):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
