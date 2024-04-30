@@ -157,8 +157,13 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
         min_st = 5
         if opcode.startswith('LDSM') and tmp_opcode.startswith('LDSM'):
             min_st = 8
-        if opcode.startswith('IADD3.X') and tmp_opcode.startswith('IADD3.X'):
+        elif opcode.startswith('IADD3.X') and tmp_opcode.startswith('IADD3.X'):
             min_st = 16
+        # from rbe
+        # elif opcode.startswith('LDSM'):
+        #     min_st = 11
+        # elif tmp_opcode.startswith('IADD3'):
+        #     min_st = 10
         # flash-decoding
         # if opcode.startswith('LDG') and tmp_opcode.startswith('IADD3'):
         #     min_st = 12
