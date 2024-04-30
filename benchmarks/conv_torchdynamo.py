@@ -475,8 +475,209 @@ def _kernel_delta_x(
 
     tl.store(y_ptrs, acc, mask=mask_y)
 
-
 def forward(
+        k1,
+        k2,
+        x,
+        w,
+        bias,
+        stride=(1, 1),
+        padding=(0, 0),
+        dilation=(1, 1),
+        transposed=False,
+        output_padding=(0, 0),
+        groups=1,
+        load_dir=None,
+):
+    if groups != 1:
+        raise RuntimeError("groups must be 1")
+    if transposed:
+        raise RuntimeError("transposed must be False")
+
+    # Q: should we check x, w, bias dtypes?
+    device = x.device
+    # input shapes
+    shape_x = x.shape
+    shape_w = w.shape
+    shape_bias = bias.shape if bias is not None else None
+
+    # indicies for the layeout
+    xn, xc, xh, xw = 0, 1, 2, 3
+    yn, yc, yh, yw = 0, 1, 2, 3
+    wn, wc, wh, ww = 0, 1, 2, 3
+
+    # out_channel, in_channel, kernel_height, kernel_width
+    kernel_size = [shape_w[wh], shape_w[ww]]
+    input_size = [shape_x[xh], shape_x[xw]]
+    assert (not shape_bias or shape_bias[0] == shape_w[wn]
+            ), f"bias shape did not match{shape_bias} != {shape_w[wn]}"
+    in_channel = shape_w[wc] * groups
+
+    assert shape_x[xc] % groups == 0, "in_channels must be divisible by groups"
+    assert shape_w[wn] % groups == 0, "out_channels must be divisible by groups"
+    assert (shape_x[xc] == in_channel
+            ), f"in_channel did not match {shape_x[xc]} != {in_channel}"
+
+    assert (len(stride) == len(padding) == len(dilation) == len(output_padding)
+            == len(kernel_size) == len(input_size))
+
+    # output shape
+    shape_y = [0] * 4
+    shape_y[yn] = shape_x[xn]
+    shape_y[yc] = shape_w[wn]
+    shape_y[yh] = (input_size[0] + 2 * padding[0] - dilation[0] *
+                   (kernel_size[0] - 1) - 1 +
+                   stride[0]) // stride[0] + 2 * output_padding[0]
+    shape_y[yw] = (input_size[1] + 2 * padding[1] - dilation[1] *
+                   (kernel_size[1] - 1) - 1 +
+                   stride[1]) // stride[1] + 2 * output_padding[1]
+
+    BATCH = shape_x[xn]
+    IN_C = shape_x[xc]
+    IN_H = shape_x[xh]
+    IN_W = shape_x[xw]
+    KERNEL_N = shape_w[wn]
+    KERNEL_H = shape_w[wh]
+    KERNEL_W = shape_w[ww]
+    OUT_H = shape_y[yh]
+    OUT_W = shape_y[yw]
+
+    # allocate output
+    y = torch.empty(shape_y, device=device, dtype=x.dtype)
+
+    # get strides for tensors
+    stride_x = x.stride()
+    stride_w = w.stride()
+    stride_bias = bias.stride() if shape_bias else None
+    stride_biasn = stride_bias[0] if stride_bias else None
+
+    # output layout should be the same as x
+    if stride_x[xc] < stride_x[xh] and stride_x[xc] < stride_x[xw]:
+        y = y.to(memory_format=torch.channels_last)
+    stride_y = y.stride()
+
+    # allocate tmp
+    # WINDOW_SIZE = KERNEL_H * KERNEL_W * IN_C
+    # tmp_x = torch.empty((BATCH * OUT_H * OUT_W, WINDOW_SIZE), device=device, dtype=x.dtype)
+    # tmp_w = torch.empty((WINDOW_SIZE, KERNEL_N), device=device, dtype=w.dtype)
+    # accumulator types
+    ACC_TYPE = (tl.float32 if x.dtype in [
+        torch.float16, torch.bfloat16, torch.float32
+    ] else tl.int32)
+    # if stride_x[xc] == 1 and stride_x > 1 and stride_y > 1:
+    CONV1X1_NHWC = False
+    if stride_x[xc] == 1 and KERNEL_H == 1 and KERNEL_W == 1:
+        CONV1X1_NHWC = True
+    #  do we need delta x ptr for h, w, c dimension each or not
+    DELTA_X_PTR_HWC = (False if ((padding[0] == 0 and padding[1] == 0) or
+                                 (KERNEL_H == 1 and KERNEL_W == 1)) else True)
+    if not CONV1X1_NHWC:
+        if DELTA_X_PTR_HWC:
+            delta_xh, delta_xw, delta_xc = _conv._delta_x_ptr_hwc(
+                IN_C,
+                KERNEL_H,
+                KERNEL_W,
+                dilation[0],
+                dilation[1],
+                stride_w[wc],
+                stride_w[wh],
+                stride_w[ww],
+                stride_x[xc],
+                stride_x[xh],
+                stride_x[xw],
+                device,
+            )
+        else:
+            delta_x = _conv._delta_x_ptr(
+                IN_C,
+                KERNEL_H,
+                KERNEL_W,
+                dilation[0],
+                dilation[1],
+                stride_w[wc],
+                stride_w[wh],
+                stride_w[ww],
+                stride_x[xc],
+                stride_x[xh],
+                stride_x[xw],
+                device,
+            )
+    else:
+        delta_x = None
+        delta_xh, delta_xw, delta_xc = None, None, None
+
+    # launch kernel, 2-dim, batch*h*w, kernel
+    def grid(META):
+        return (
+            triton.cdiv(BATCH * OUT_H * OUT_W, META["BLOCK_M"]),
+            triton.cdiv(KERNEL_N, META["BLOCK_N"]),
+        )
+
+    # conv1x1 or padding==0
+    if CONV1X1_NHWC or not DELTA_X_PTR_HWC:
+        print('k1::')
+        k1[grid](
+            x, w, y, #
+            # stride nchw for x,w,y tensor
+            stride_x[xn], stride_x[xc], stride_x[xh], stride_x[xw], stride_w[wn], stride_w[wc], stride_w[wh], stride_w[ww], stride_y[yn], stride_y[yc], stride_y[yh], stride_y[yw], stride_biasn,  #
+            # pointer inc for x
+            delta_x,
+            # Tensor dimensions
+            BATCH, IN_C, IN_H, IN_W, KERNEL_N, KERNEL_H, KERNEL_W, OUT_H, OUT_W,  #
+            # conv parameters
+            stride[0], stride[1], padding[0], padding[1], dilation[0], dilation[1], output_padding[0], output_padding[1], groups,  #
+            # Metaparameters
+            # ACC_TYPE=ACC_TYPE,
+            # CONV1X1_NHWC=CONV1X1_NHWC,
+            # BLOCK_M=128,
+            # BLOCK_N=32,
+            # BLOCK_K=32,
+            # GROUP_H=1,
+            # BLOCK_M = 256,
+            # BLOCK_N = 32,
+            # BLOCK_K = 64,
+            # num_stages=4,
+            # num_warps=4,
+            load_dir=load_dir,
+        )
+    # need to know ptr update for each dimension to check if
+    # the sliding window is out of bounds
+    else:
+        print('k2::')
+        k2[grid](
+            x, w, y,  # 
+            # stride nchw for x,w,y tensor
+            stride_x[xn], stride_x[xc], stride_x[xh], stride_x[xw], stride_w[wn], stride_w[wc], stride_w[wh], stride_w[ww], stride_y[yn], stride_y[yc], stride_y[yh], stride_y[yw], stride_biasn,  # 
+            # pointer inc for x
+            delta_xh, delta_xw, delta_xc, #
+            # Tensor dimensions
+            BATCH, IN_C, IN_H, IN_W, KERNEL_N, KERNEL_H, KERNEL_W, OUT_H, OUT_W,  # 
+            # conv parameters
+            stride[0], stride[1], padding[0], padding[1], dilation[0], dilation[1], output_padding[0], output_padding[1], groups, # 
+            # Metaparameters
+            # ACC_TYPE=ACC_TYPE,
+            # CONV1X1_NHWC=CONV1X1_NHWC,
+            # BLOCK_M=128,
+            # BLOCK_N=32,
+            # BLOCK_K=32,
+            # GROUP_H=1,
+
+            # BLOCK_M = 256,
+            # BLOCK_N = 32,
+            # BLOCK_K = 64,
+            # num_stages=4,
+            # num_warps=4,
+            load_dir=load_dir,
+        )
+
+    if bias is not None:
+        if len(bias.shape) == 1:
+            bias = bias.reshape([1, bias.shape[0], 1, 1])
+        y += bias
+    return y
+
+
+def forward_tt(
         k1,
         k2,
         x,
@@ -705,7 +906,7 @@ def main():
     )
 
     # workload
-    BATCH = 32
+    BATCH = drl_config.b
     wl = drl_config.wl
     assert wl < len(resnet50_layers), f"wl {wl} > {len(resnet50_layers)}"
     dtype = torch.float32
@@ -750,7 +951,7 @@ def main():
         drl_config=drl_config,
     )
     @jit
-    def _cuasmrl_k1(
+    def _cuasmrl_k2(
         x, w, y, # stride of tensor
         stride_xn, stride_xc, stride_xh, stride_xw, stride_wn, stride_wc, stride_wh, stride_ww, stride_yn, stride_yc, stride_yh, stride_yw, stride_biasn, # pointer inc for x
         delta_xh_ptr, delta_xw_ptr, delta_xc_ptr, # Tensor dimensions
@@ -908,7 +1109,7 @@ def main():
         drl_config=drl_config,
     )
     @jit
-    def _cuasmrl_k2(
+    def _cuasmrl_k1(
         x, w, y,
         # stride of tensor
         stride_xn, stride_xc, stride_xh, stride_xw, stride_wn, stride_wc, stride_wh, stride_ww, stride_yn, stride_yc, stride_yh, stride_yw, stride_biasn,
@@ -1046,8 +1247,8 @@ def main():
 
 
     tri_out = forward(
-        _cuasmrl_k2,
         _cuasmrl_k1,
+        _cuasmrl_k2,
         x,
         w,
         bias,
@@ -1057,11 +1258,12 @@ def main():
         transposed=False,
         # output_padding=(0, 0),
         groups=1,
+        load_dir=load_dir,
     )
 
 
     if drl_config.tt:
-        tri_out = forward(
+        tri_out = forward_tt(
             _kernel_delta_x,
             _kernel_delta_x_hwc,
             x,

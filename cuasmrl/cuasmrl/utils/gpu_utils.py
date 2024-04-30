@@ -285,10 +285,12 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
                 return False
         if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
+        
+        # special: conv
         if prev_opcode.startswith('STG') and cur_opcode.startswith('ISETP'):
             return False
-        # if prev_opcode.startswith('ISETP') and cur_opcode.startswith('LDG'):
-        #     return False
+        if prev_opcode.startswith('ISETP.LT.AND') and cur_opcode.startswith('LDG.E.128'):
+            return False
         return True
     elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
