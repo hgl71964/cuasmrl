@@ -237,6 +237,8 @@ def check_ban_opcode(cc, opcode):
             return False
         elif opcode.startswith('BAR.SYNC'):
             return False
+        elif opcode.startswith('BAR'):
+            return False
         return True
     elif cc == (8, 6):
         if opcode.startswith('LDGDEPBAR'):
