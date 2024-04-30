@@ -154,6 +154,8 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
     elif cc == (8, 0):
         # st
         min_st = 5
+        if opcode.startswith('LDSM') and tmp_opcode.startswith('LDSM'):
+            min_st = 8
 
         # hazard
         if st <= min_st:
@@ -165,6 +167,11 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
                 return True
             if tmp_dst in src:
                 return True
+
+            # read-after-read for some inst
+            if opcode.startswith('LDSM') and tmp_opcode.startswith('LDSM'):
+                if set(src).intersection(tmp_src):
+                    return True
 
         return False
     else:
@@ -267,6 +274,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
                 return False
         if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('LDG'):
+            if set(prev_src).intersection(cur_src):
+                return False
         if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
         return True
