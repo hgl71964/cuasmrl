@@ -24,7 +24,8 @@ MUTATABLE_OPS = {
     # A100
     (8, 0): (
         # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        ['LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
@@ -156,6 +157,8 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
         min_st = 5
         if opcode.startswith('LDSM') and tmp_opcode.startswith('LDSM'):
             min_st = 8
+        if opcode.startswith('IADD3.X') and tmp_opcode.startswith('IADD3.X'):
+            min_st = 16
 
         # hazard
         if st <= min_st:
@@ -270,6 +273,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
                 # it seems LDGSTS follows certain order
                 return False
         if prev_opcode.startswith('LDSM') and cur_opcode.startswith('LDSM'):
+            if set(prev_src).intersection(cur_src):
+                return False
+        if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
             if set(prev_src).intersection(cur_src):
                 return False
         if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
