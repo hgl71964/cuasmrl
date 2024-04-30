@@ -299,6 +299,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
         # flash-decoding
         # if prev_opcode.startswith('LDG.E.U16'):
         #     return False
+        # softmax
+        if prev_opcode.startswith('STG.E.64') and cur_opcode.startswith('IADD3.X'):
+            return False
         return True
     elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
