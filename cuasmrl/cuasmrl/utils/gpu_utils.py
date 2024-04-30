@@ -249,11 +249,12 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
             # write to consecutive GPR, e.g.
             # LDS.U.64 R2, [R252+0x2080]
             # STL [R1+0x51c], R251
-            if prev_dst.startswith('R') and cur_dst.startswith('R'):
-                p = int(prev_dst[1:])
-                c = int(cur_dst[1:])
-                if abs(p - c) <= 1:
-                    return False
+            if prev_dst is not None and cur_dst is not None:
+                if prev_dst.startswith('R') and cur_dst.startswith('R'):
+                    p = int(prev_dst[1:])
+                    c = int(cur_dst[1:])
+                    if abs(p - c) <= 1:
+                        return False
         return True
     elif cc == (8, 0):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
