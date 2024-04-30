@@ -123,7 +123,7 @@ GPU = get_gpu_name()
 
 
 @triton.jit
-def online_softmax(
+def tt_softmax(
     x_ptr,
     y_ptr,
     x_stride,
@@ -270,11 +270,11 @@ if __name__ == "__main__":
     a = torch.randn((m, n), dtype=torch.float16, device=device)
 
     drl_config.total_flops = 2 * a.nelement() * a.element_size() 
-    drl_config.save_dir = f'{GPU}/onlineSoftmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
+    drl_config.save_dir = f'{GPU}/safe_softmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
     if drl_config.load is None:
         load_dir = None
     elif drl_config.load == "auto":
-        load_dir = f'data/{GPU}/onlineSoftmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
+        load_dir = f'data/{GPU}/safe_softmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
     else:
         load_dir = drl_config.load
 
@@ -287,7 +287,7 @@ if __name__ == "__main__":
         ret_ptr=1,
     )
     @jit
-    def cuasmrl_online_softmax(
+    def _cuasmrl(
         x_ptr,
         y_ptr,
         x_stride,
@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
 
 
-    call(a, cuasmrl_online_softmax, load_dir, BLOCK_M, BLOCK_N)
+    call(a, _cuasmrl, load_dir, BLOCK_M, BLOCK_N)
 
     if drl_config.tt:
-        triton_out = call_tt(a, online_softmax, BLOCK_M, BLOCK_N)
+        triton_out = call_tt(a, tt_softmax, BLOCK_M, BLOCK_N)
