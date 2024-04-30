@@ -245,6 +245,15 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
         if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
             if set(prev_src).intersection(cur_src):
                 return False
+        if prev_opcode.startswith('LDS') or cur_opcode.startswith('LDS'):
+            # write to consecutive GPR, e.g.
+            # LDS.U.64 R2, [R252+0x2080]
+            # STL [R1+0x51c], R251
+            if prev_dst.startswith('R') and cur_dst.startswith('R'):
+                p = int(prev_dst[1:])
+                c = int(cur_dst[1:])
+                if abs(p - c) <= 1:
+                    return False
         return True
     elif cc == (8, 0):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
@@ -252,12 +261,12 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
-        elif prev_opcode.startswith('LDSM') and cur_opcode.startswith('LDSM'):
+        if prev_opcode.startswith('LDSM') and cur_opcode.startswith('LDSM'):
             if set(prev_src).intersection(cur_src):
                 return False
-        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
-        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+        if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
         return True
     elif cc == (8, 6):
@@ -266,9 +275,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
-        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
-        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+        if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
         return True
     else:
