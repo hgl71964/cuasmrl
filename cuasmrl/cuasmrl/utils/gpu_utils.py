@@ -159,6 +159,11 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
             min_st = 8
         if opcode.startswith('IADD3.X') and tmp_opcode.startswith('IADD3.X'):
             min_st = 16
+        # flash-decoding
+        # if opcode.startswith('LDG') and tmp_opcode.startswith('IADD3'):
+        #     min_st = 12
+        # if opcode.startswith('LDG') and tmp_opcode.startswith('PRMT'):
+        #     min_st = 6
 
         # hazard
         if st <= min_st:
@@ -291,6 +296,9 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
             return False
         if prev_opcode.startswith('ISETP.LT.AND') and cur_opcode.startswith('LDG.E.128'):
             return False
+        # flash-decoding
+        # if prev_opcode.startswith('LDG.E.U16'):
+        #     return False
         return True
     elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
