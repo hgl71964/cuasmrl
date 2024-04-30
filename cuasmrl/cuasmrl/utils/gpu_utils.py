@@ -24,8 +24,8 @@ MUTATABLE_OPS = {
     # A100
     (8, 0): (
         # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
-        ['LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        # ['LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
