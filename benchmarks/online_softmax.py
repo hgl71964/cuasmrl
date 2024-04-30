@@ -32,6 +32,8 @@ class Config:
     # Workload
     m: int = 1024
     n: int =16384
+    bm: int = 8
+    bn: int = 64
 
     # RL
     train: int = 1
@@ -79,6 +81,8 @@ def parse_args() -> Config:
 
     parser.add_argument("-m", type=int, default=1024)
     parser.add_argument("-n", type=int, default=16384)
+    parser.add_argument("--bm", type=int, default=8)
+    parser.add_argument("--bn", type=int, default=64)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -216,9 +220,7 @@ def safe_softmax(
         y_ptrs += BLOCK_N
 
 
-def call_tt(x, kernel):
-    BLOCK_M = 8
-    BLOCK_N = 64
+def call_tt(x, kernel, BLOCK_M, BLOCK_N):
     grid = (triton.cdiv(x.shape[0], BLOCK_M),
         )
     out = torch.empty_like(x)
@@ -235,9 +237,7 @@ def call_tt(x, kernel):
     return out
 
 
-def call(x, kernel, load_dir):
-    BLOCK_M = 8
-    BLOCK_N = 64
+def call(x, kernel, load_dir, BLOCK_M, BLOCK_N):
     grid = (triton.cdiv(x.shape[0], BLOCK_M),
         )
     out = torch.empty_like(x)
@@ -266,20 +266,21 @@ if __name__ == "__main__":
     device = torch.device("cuda:0")
 
     m, n = drl_config.m , drl_config.n
+    BLOCK_M, BLOCK_N = drl_config.bm, drl_config.bn
     a = torch.randn((m, n), dtype=torch.float16, device=device)
 
     drl_config.total_flops = 2 * a.nelement() * a.element_size() 
-    drl_config.save_dir = f'{GPU}/onlineSoftmax/{m}_{n}'
+    drl_config.save_dir = f'{GPU}/onlineSoftmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
     if drl_config.load is None:
         load_dir = None
     elif drl_config.load == "auto":
-        load_dir = f'data/{GPU}/onlineSoftmax/{m}_{n}'
+        load_dir = f'data/{GPU}/onlineSoftmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
     else:
         load_dir = drl_config.load
 
     @fgk_autotune(
         configs=[
-            triton.Config({'BLOCK_M': 8, 'BLOCK_N': 64}, num_stages=4, num_warps=4),
+            triton.Config({'BLOCK_M': BLOCK_M, 'BLOCK_N': BLOCK_N}, num_stages=4, num_warps=4),
         ],
         key=['BLOCK_M', 'BLOCK_N'],
         drl_config=drl_config,  # just need the path really
@@ -333,7 +334,7 @@ if __name__ == "__main__":
 
 
 
-    call(a, cuasmrl_online_softmax, load_dir)
+    call(a, cuasmrl_online_softmax, load_dir, BLOCK_M, BLOCK_N)
 
     if drl_config.tt:
-        triton_out = call_tt(a, online_softmax)
+        triton_out = call_tt(a, online_softmax, BLOCK_M, BLOCK_N)
