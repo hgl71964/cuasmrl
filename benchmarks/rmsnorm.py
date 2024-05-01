@@ -81,8 +81,8 @@ def parse_args() -> Config:
     parser.add_argument('--tt', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("--Z", type=int, dest="Z", default=1)
-    parser.add_argument("--H", type=int, dest="H", default=16)
-    parser.add_argument("--wl", type=int, default=32)
+    parser.add_argument("--H", type=int, dest="H", default=64)
+    parser.add_argument("--wl", type=int, default=128)
     parser.add_argument("--dh", type=int, dest="D_HEAD", default=128)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
     @fgk_autotune(
         configs=[
-		triton.Config({'N_SIZE': K, 'eps': 1e-6, 'BLOCK_N_SIZE':64}, num_stages=2, num_warps=4),
+		triton.Config({'N_SIZE': K, 'eps': 1e-6, 'BLOCK_N_SIZE':32}, num_stages=4, num_warps=4),
             
     ],
         key=['N_SIZE'],
@@ -268,6 +268,7 @@ if __name__ == '__main__':
             'cuasmrl': ms,
             'tt': ms_tt,
         }
+        print(data)
 
         fp = f"data/{GPU}/rmsnorm/{batch}_{heads}_{seq_len}_{dim}/bench_{drl_config.seed}.pkl"
         with open(fp, 'wb') as f:

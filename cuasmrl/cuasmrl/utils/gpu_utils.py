@@ -236,6 +236,8 @@ def check_ban_opcode(cc, opcode):
             return False
         elif opcode.startswith('ULDC'):
             return False
+        elif opcode.startswith('BRA'):
+            return False
         return True
     elif cc == (8, 0):
         if opcode.startswith('LDGDEPBAR'):
