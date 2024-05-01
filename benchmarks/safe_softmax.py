@@ -133,57 +133,6 @@ def tt_softmax(
 ):
     pid_m = tl.program_id(0)
 
-    m_offset = pid_m * BLOCK_M * x_stride
-    k_offset = tl.arange(0, BLOCK_N)
-
-    # online softmax
-    x_ptrs = x_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
-    m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
-    for k in range(0, tl.cdiv(x_stride, BLOCK_N)):
-        mask = k * BLOCK_N + k_offset < x_stride
-        x = tl.load(x_ptrs, mask[None, :], -float('inf'))
-
-        # local max, sum
-        m_ij = tl.maximum(tl.max(x, 1), m_i)
-        # m_ij = tl.max(x, 1)   # NOTE <- this can work too (FLASHDECODING++, the scaling factor can be arbitrary number)
-        alpha = tl.exp(m_i - m_ij)
-
-        l_ij = tl.exp(x-m_ij[:, None])
-        l_ij = tl.sum(l_ij, 1)
-
-        # update
-        l_i = l_i * alpha + l_ij
-        m_i = m_ij
-
-        x_ptrs += BLOCK_N
-
-    x_ptrs = x_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
-    y_ptrs = y_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
-    for k in range(0, tl.cdiv(x_stride, BLOCK_N)):
-        mask = k * BLOCK_N + k_offset < x_stride
-        x = tl.load(x_ptrs, mask[None, :], -float('inf'))
-
-        numerator = tl.exp(x - m_i[:, None])
-        denominator = l_i[:, None]
-        y = numerator / denominator
-
-        tl.store(y_ptrs, y, mask[None, :])
-
-        x_ptrs += BLOCK_N
-        y_ptrs += BLOCK_N
-
-
-@triton.jit
-def safe_softmax(
-    x_ptr,
-    y_ptr,
-    x_stride,
-    BLOCK_M: tl.constexpr,
-    BLOCK_N: tl.constexpr,
-):
-    pid_m = tl.program_id(0)
-
     m_offset = pid_m * x_stride * BLOCK_M
     k_offset = tl.arange(0, BLOCK_N)
 
@@ -351,6 +300,8 @@ if __name__ == "__main__":
             'cuasmrl': ms,
             'tt': ms_tt,
         }
+
+        print(data)
 
         fp = f"data/{GPU}/safe_softmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}/bench_{drl_config.seed}.pkl"
         with open(fp, 'wb') as f:

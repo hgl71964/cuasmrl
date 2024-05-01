@@ -86,6 +86,8 @@ def run_selection(
             for i, fn in enumerate(os.listdir(cubin_dir_path)):
                 if fn == 'cache_config.pkl':
                     continue
+                if fn.startswith('bench'):
+                    continue
                 if not fn.endswith('.pkl'):
                     continue
 
