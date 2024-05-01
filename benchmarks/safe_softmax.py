@@ -1,4 +1,5 @@
 import os
+import pickle
 import argparse
 from dataclasses import dataclass, field
 from typing import Optional
@@ -338,3 +339,19 @@ if __name__ == "__main__":
 
     if drl_config.tt:
         triton_out = call_tt(a, tt_softmax, BLOCK_M, BLOCK_N)
+
+    if bool(drl_config.bench):
+        print('BENCH...')
+        torch.cuda.synchronize()
+
+        ms = do_bench(lambda: call(a, _cuasmrl, load_dir, BLOCK_M, BLOCK_N), warmup=100, rep=100)
+        ms_tt = do_bench(lambda: call_tt(a, tt_softmax, BLOCK_M, BLOCK_N), warmup=100, rep=100)
+
+        data = {
+            'cuasmrl': ms,
+            'tt': ms_tt,
+        }
+
+        fp = f"data/{GPU}/safe_softmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}/bench_{drl_config.seed}.pkl"
+        with open(fp, 'wb') as f:
+            pickle.dump(data, f)
