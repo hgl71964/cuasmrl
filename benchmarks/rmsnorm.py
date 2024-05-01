@@ -1,4 +1,5 @@
 import os
+import pickle
 import argparse
 from dataclasses import dataclass, field
 from typing import Optional
@@ -255,3 +256,19 @@ if __name__ == '__main__':
 
     if drl_config.tt:
         out_rms_triton = call_tt(x=embeddings_load, rms_w=rms_weights)
+
+    if bool(drl_config.bench):
+        print('BENCH...')
+        torch.cuda.synchronize()
+
+        ms = do_bench(lambda: call(_cuasmrl, load_dir, embeddings_load, rms_weights), warmup=100, rep=100)
+        ms_tt = do_bench(lambda: call_tt(x=embeddings_load, rms_w=rms_weights), warmup=100, rep=100)
+
+        data = {
+            'cuasmrl': ms,
+            'tt': ms_tt,
+        }
+
+        fp = f"data/{GPU}/rmsnorm/{batch}_{heads}_{seq_len}_{dim}/bench_{drl_config.seed}.pkl"
+        with open(fp, 'wb') as f:
+            pickle.dump(data, f)
