@@ -54,7 +54,7 @@ MUTATABLE_OPS = {
         # memory_ops
         [
             'LDG',
-            'LDS',
+            # 'LDS',
             'STG',
         ],
         # ban_ops
