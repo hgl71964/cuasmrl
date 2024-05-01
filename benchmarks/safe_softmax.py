@@ -81,7 +81,7 @@ def parse_args() -> Config:
 
     parser.add_argument("-m", type=int, default=1024)
     parser.add_argument("-n", type=int, default=16384)
-    parser.add_argument("--bm", type=int, default=8)
+    parser.add_argument("--bm", type=int, default=16)
     parser.add_argument("--bn", type=int, default=64)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
@@ -127,8 +127,8 @@ def tt_softmax(
     x_ptr,
     y_ptr,
     x_stride,
-    BLOCK_M: tl.constexpr, 
-    BLOCK_N: tl.constexpr, 
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
 ):
     pid_m = tl.program_id(0)
 
@@ -138,7 +138,7 @@ def tt_softmax(
     # online softmax
     x_ptrs = x_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
     m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32) 
+    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     for k in range(0, tl.cdiv(x_stride, BLOCK_N)):
         mask = k * BLOCK_N + k_offset < x_stride
         x = tl.load(x_ptrs, mask[None, :], -float('inf'))
@@ -178,8 +178,8 @@ def safe_softmax(
     x_ptr,
     y_ptr,
     x_stride,
-    BLOCK_M: tl.constexpr, 
-    BLOCK_N: tl.constexpr, 
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
 ):
     pid_m = tl.program_id(0)
 
@@ -196,7 +196,7 @@ def safe_softmax(
         x_ptrs += BLOCK_N
 
     x_ptrs = x_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32) 
+    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     for k in range(0, tl.cdiv(x_stride, BLOCK_N)):
         mask = k * BLOCK_N + k_offset < x_stride
         x = tl.load(x_ptrs, mask[None, :], 0)
@@ -226,7 +226,7 @@ def call_tt(x, kernel, BLOCK_M, BLOCK_N):
     out = torch.empty_like(x)
 
     kernel[grid](
-        x, 
+        x,
         out,
 
         x.stride(0),
@@ -243,7 +243,7 @@ def call(x, kernel, load_dir, BLOCK_M, BLOCK_N):
     out = torch.empty_like(x)
 
     kernel[grid](
-        x, 
+        x,
         out,
 
         x.stride(0),
@@ -269,7 +269,7 @@ if __name__ == "__main__":
     BLOCK_M, BLOCK_N = drl_config.bm, drl_config.bn
     a = torch.randn((m, n), dtype=torch.float16, device=device)
 
-    drl_config.total_flops = 2 * a.nelement() * a.element_size() 
+    drl_config.total_flops = 2 * a.nelement() * a.element_size()
     drl_config.save_dir = f'{GPU}/safe_softmax/{m}_{n}_{BLOCK_M}_{BLOCK_N}'
     if drl_config.load is None:
         load_dir = None
@@ -291,8 +291,8 @@ if __name__ == "__main__":
         x_ptr,
         y_ptr,
         x_stride,
-        BLOCK_M: tl.constexpr, 
-        BLOCK_N: tl.constexpr, 
+        BLOCK_M: tl.constexpr,
+        BLOCK_N: tl.constexpr,
     ):
         pid_m = tl.program_id(0)
 
@@ -309,7 +309,7 @@ if __name__ == "__main__":
             x_ptrs += BLOCK_N
 
         x_ptrs = x_ptr + m_offset + (tl.arange(0, BLOCK_M)[:, None] * x_stride + k_offset[None, :])
-        l_i = tl.zeros([BLOCK_M], dtype=tl.float32) 
+        l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
         for k in range(0, tl.cdiv(x_stride, BLOCK_N)):
             mask = k * BLOCK_N + k_offset < x_stride
             x = tl.load(x_ptrs, mask[None, :], 0)

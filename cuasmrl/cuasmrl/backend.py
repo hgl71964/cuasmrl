@@ -209,6 +209,7 @@ class Env(gym.Env):
         state, masks = self._build_state()
         info['masks'] = masks  # noop should be handled outsides
         if np.sum(masks) < 1:
+            logger.warning('no action available')
             terminated=True
         self.last_perf = perf
 

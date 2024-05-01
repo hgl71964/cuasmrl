@@ -24,8 +24,8 @@ MUTATABLE_OPS = {
     # A100
     (8, 0): (
         # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
-        # ['LDGSTS', 'LDG', 'STG'],
+        # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        ['LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
         ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
     ),
@@ -161,6 +161,8 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
             min_st = 16
         elif opcode.startswith('LDG') and tmp_opcode.startswith('LEA'):
             min_st = 8
+        elif opcode.startswith('LDG') and tmp_opcode.startswith('MOV'):
+            min_st = 12
         # from rbe
         # elif opcode.startswith('LDSM'):
         #     min_st = 11
@@ -299,7 +301,7 @@ def check_adj_opcodes(cc, prev_opcode, prev_dst, prev_src, cur_opcode, cur_dst,
                 return False
         if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
-        
+
         # special: conv
         if prev_opcode.startswith('STG') and cur_opcode.startswith('ISETP'):
             return False
