@@ -78,8 +78,8 @@ def parse_args() -> Config:
 
     parser.add_argument("--Z", type=int, dest="Z", default=1)
     parser.add_argument("--H", type=int, dest="H", default=4)
-    parser.add_argument("--wl", type=int, default=16384)
-    parser.add_argument("--dh", type=int, dest="D_HEAD", default=64)
+    parser.add_argument("--wl", type=int, default=128)
+    parser.add_argument("--dh", type=int, dest="D_HEAD", default=128)
     parser.add_argument('--causal', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)

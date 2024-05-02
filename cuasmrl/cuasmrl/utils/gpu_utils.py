@@ -55,6 +55,58 @@ def get_mutatable_ops(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
+def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
+    if cc == (7, 0):
+        # st
+        min_st = 8
+        if tmp_opcode.startswith('LDG'):
+            min_st = 15
+        elif opcode.startswith('LDG'):
+            min_st = 15
+
+        # hazard
+        if st <= min_st:
+            # wAw
+            if dst == tmp_dst:
+                return True
+            # RAW; WAR
+            if dst in tmp_src:
+                return True
+            if tmp_dst in src:
+                return True
+
+        return False
+
+    elif cc == (8, 0):
+        # st
+        min_st = 12
+        # from rbe
+        # elif opcode.startswith('LDSM'):
+        #     min_st = 11
+        # elif tmp_opcode.startswith('IADD3'):
+        #     min_st = 10
+        # flash-decoding
+        # if opcode.startswith('LDG') and tmp_opcode.startswith('IADD3'):
+        #     min_st = 12
+        # if opcode.startswith('LDG') and tmp_opcode.startswith('PRMT'):
+        #     min_st = 6
+
+        # hazard
+        if st <= min_st:
+            # write-after-write
+            if dst == tmp_dst:
+                return True
+            # RAW; WAR
+            if dst in tmp_src:
+                return True
+            if tmp_dst in src:
+                return True
+
+        return False
+    else:
+        raise RuntimeError(f'unsupported compute capability: {cc}')
+
+
 def get_min_stall_count(cc, opcode):
     if cc == (7, 5):
         if opcode.startswith('CS2R'):
@@ -64,21 +116,6 @@ def get_min_stall_count(cc, opcode):
         return 12
     elif cc == (8, 6):
         return 13
-    else:
-        raise RuntimeError(f'unsupported compute capability: {cc}')
-
-
-def get_moveup_deps(cc, opcode, tmp_dst, tmp_src, dst, src):
-    # some opcodes needs both dst and src ready... so we need to check both
-    if cc == (7, 5):
-        if opcode.startswith('CS2R'):
-            return [dst] + src, [tmp_dst] + tmp_src
-        else:
-            return src, [tmp_dst]
-    elif cc == (8, 0):
-        return src, [tmp_dst]
-    elif cc == (8, 6):
-        return src, [tmp_dst]
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 

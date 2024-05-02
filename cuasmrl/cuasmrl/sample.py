@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_moveup_deps, get_st_window, check_adj_opcodes
+from cuasmrl.utils.gpu_utils import get_gpu_cc, get_mutatable_ops, get_min_stall_count, get_st_window, check_adj_opcodes
 from cuasmrl.utils.logger import get_logger
 
 CC = get_gpu_cc()
@@ -302,7 +302,7 @@ class Sample:
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 # move down check
-                min_st = get_min_stall_count(CC, p_opcode)
+                min_st = get_min_stall_count(CC, p_opcode, tmp_opcode)
                 if p_dest in tmp_src and total <= min_st:
                     mask[0] = 0
 
@@ -325,13 +325,9 @@ class Sample:
                 total += stall_count
 
                 # moveup check
-                min_st = get_min_stall_count(CC, tmp_opcode)
-                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
-                                                       tmp_src, dst, src)
-                for consumer in consumers:
-                    if consumer in producers and total <= min_st:
-                        mask[0] = 0
-                        break
+                min_st = get_min_stall_count(CC, opcode, tmp_opcode)
+                if tmp_dst in src and total <= min_st:
+                    mask[0] = 0
 
         # if MemOp were to move down
         p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
@@ -373,13 +369,9 @@ class Sample:
                 total += stall_count
 
                 # moveup check
-                min_st = get_min_stall_count(CC, tmp_opcode)
-                consumers, producers = get_moveup_deps(CC, tmp_opcode, tmp_dst,
-                                                       tmp_src, p_dest, p_src)
-                for consumer in consumers:
-                    if consumer in producers and total <= min_st:
-                        mask[1] = 0
-                        break
+                min_st = get_min_stall_count(CC, p_opcode, tmp_opcode)
+                if tmp_dst in p_src and total <= min_st:
+                    mask[1] = 0
 
             ## for memOp
             total = int(self_stall_count[1:-1])
@@ -400,7 +392,7 @@ class Sample:
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
                 # move down check
-                min_st = get_min_stall_count(CC, opcode)
+                min_st = get_min_stall_count(CC, opcode, tmp_opcode)
                 if dst in tmp_src and total <= min_st:
                     mask[1] = 0
 
