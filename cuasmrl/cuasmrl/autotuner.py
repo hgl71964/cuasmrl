@@ -7,6 +7,7 @@ from copy import deepcopy
 from collections import defaultdict, namedtuple
 
 # from triton.testing import do_bench
+import triton
 from triton.runtime.autotuner import Autotuner as TritonAutotuner
 from triton.runtime.autotuner import OutOfResources
 
@@ -88,16 +89,10 @@ class Autotuner(TritonAutotuner):
 
         try:
             # this populates data to the ret_ptr
-            # return do_bench(kernel_call,
-            #                 warmup=self.warmup,
-            #                 rep=self.rep,
-            #                 quantiles=(0.5, 0.2, 0.8))
-            ms = do_bench(
-                kernel_call,
-                warmup=100,
-                rep=100,
-            )
-            return [ms, ms, ms]
+            return triton.testing.do_bench(kernel_call,
+                            warmup=self.warmup,
+                            rep=self.rep,
+                            quantiles=(0.5, 0.2, 0.8))
         except OutOfResources:
             return [float("inf"), float("inf"), float("inf")]
 

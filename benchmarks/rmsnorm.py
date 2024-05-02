@@ -81,7 +81,7 @@ def parse_args() -> Config:
     parser.add_argument('--tt', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("--Z", type=int, dest="Z", default=1)
-    parser.add_argument("--H", type=int, dest="H", default=64)
+    parser.add_argument("--H", type=int, dest="H", default=128)
     parser.add_argument("--wl", type=int, default=128)
     parser.add_argument("--dh", type=int, dest="D_HEAD", default=128)
 

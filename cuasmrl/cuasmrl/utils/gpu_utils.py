@@ -163,6 +163,8 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
             min_st = 8
         elif opcode.startswith('LDG') and tmp_opcode.startswith('MOV'):
             min_st = 12
+        elif opcode.startswith('LDG') and tmp_opcode.startswith('IADD3'):
+            min_st = 11
         # from rbe
         # elif opcode.startswith('LDSM'):
         #     min_st = 11
