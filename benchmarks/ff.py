@@ -126,7 +126,7 @@ GPU = get_gpu_name()
 
 
 @triton.jit
-def ff_llama(
+def ff_tt(
     a_ptr, w1_ptr, w3_ptr, out_ptr, rms_w_ptr,
     M, N, K,
     stride_am, stride_ak,
@@ -215,7 +215,7 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
     x_reshape = x.reshape(M, K)
     out = torch.empty((M, N), dtype=x.dtype, device=x.device)
     grid = lambda META: (triton.cdiv(META["M"], META["BLOCK_SIZE_M"]) * triton.cdiv(META["N"], META["BLOCK_SIZE_N"]),)
-    ff_llama[grid](
+    ff_tt[grid](
         x_reshape, w1_t, w3_t, out, rms_w,
         M, N, K,
         *x_reshape.stride(),
@@ -296,8 +296,8 @@ if __name__ == '__main__':
 
     @fgk_autotune(
         configs=[
-		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
-		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
+		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
+		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
 
     ],
         key=['M', 'N', 'K'],

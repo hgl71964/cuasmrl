@@ -428,7 +428,7 @@ def main():
         drl_config=config,  # just need the path really
     )
     @triton.jit
-    def _attn_tt(
+    def tt_attn(
             Q, K, V, sm_scale, M, Out,  #
             stride_qz, stride_qh, stride_qm, stride_qk,  #
             stride_kz, stride_kh, stride_kn, stride_kk,  #
@@ -559,7 +559,7 @@ def main():
     fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd,
                            load_dir)
     tri_out = triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale,
-                                  _attn_tt)
+                                  tt_attn)
 
     ## TEST
     assert torch.allclose(tri_out, fgk_out, atol=1e-2, rtol=0)
