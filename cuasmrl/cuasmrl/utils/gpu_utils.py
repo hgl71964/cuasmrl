@@ -127,7 +127,7 @@ def has_hazard(cc, st, opcode, dst, src, tmp_opcode, tmp_dst, tmp_src):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def get_min_stall_count(cc, opcode):
+def get_min_stall_count(cc, opcode, tmp_opcode):
     if cc == (7, 5):
         if opcode.startswith('CS2R'):
             return 19
