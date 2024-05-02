@@ -45,6 +45,26 @@ MUTATABLE_OPS = {
             'LDSM',
         ],
     ),
+    # V100
+    (7, 0): (
+        # memory_ops
+        [
+            'LDG',
+            # 'LDS',
+            'STG',
+        ],
+        # ban_ops
+        [
+            'ERRBAR',
+            'MEMBAR',
+            'BAR',
+            'DEPBAR',
+            'ULDC',
+            'EXIT',
+            'BAR.SYNC',
+            # 'LDSM',
+        ],
+    ),
 }
 
 
@@ -112,16 +132,20 @@ def get_min_stall_count(cc, opcode):
         if opcode.startswith('CS2R'):
             return 19
         return 7
+    elif cc == (7, 0):
+        return 12
     elif cc == (8, 0):
         return 12
     elif cc == (8, 6):
-        return 13
+        return 12
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
 def get_st_window(cc):
     if cc == (7, 5):
+        return 10
+    elif cc == (7, 0):
         return 10
     elif cc == (8, 0):
         return 8
@@ -133,6 +157,8 @@ def get_st_window(cc):
 
 def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
     if cc == (7, 5):
+        return True
+    elif cc == (7, 0):
         return True
     elif cc == (8, 0):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
