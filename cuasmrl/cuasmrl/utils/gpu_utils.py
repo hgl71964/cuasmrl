@@ -148,7 +148,7 @@ def get_st_window(cc):
     elif cc == (7, 0):
         return 10
     elif cc == (8, 0):
-        return 8
+        return 10
     elif cc == (8, 6):
         return 8
     else:
