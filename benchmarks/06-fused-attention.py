@@ -13,6 +13,7 @@ import numpy as np
 
 from cuasmrl.jit import jit
 from cuasmrl.autotuner import autotune as fgk_autotune
+from cuasmrl.autotuner import triton_autotune_with_cache
 from cuasmrl.utils.gpu_utils import get_gpu_name, get_gpu_cc
 
 # yapf: disable
@@ -30,6 +31,7 @@ class Config:
     H: int = 4
     wl: int = 16384
     D_HEAD: int = 64
+    causal: bool = False
 
     # RL
     train: int = 1
@@ -78,6 +80,7 @@ def parse_args() -> Config:
     parser.add_argument("--H", type=int, dest="H", default=4)
     parser.add_argument("--wl", type=int, default=16384)
     parser.add_argument("--dh", type=int, dest="D_HEAD", default=64)
+    parser.add_argument('--causal', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -177,142 +180,6 @@ def _attn_fwd_inner(
     return acc, l_i, m_i
 
 
-@triton.autotune(
-    configs=[
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=2, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=8),
-        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
-        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
-        # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=3, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=4),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=7, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=7, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=6, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=5, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=8),
-        triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=6, num_warps=4),
-    ],
-    key=['N_CTX'],
-)
-@triton.jit
-def _attn_fwd_triton(
-        Q, K, V, sm_scale, M, Out,  #
-        stride_qz, stride_qh, stride_qm, stride_qk,  #
-        stride_kz, stride_kh, stride_kn, stride_kk,  #
-        stride_vz, stride_vh, stride_vk, stride_vn,  #
-        stride_oz, stride_oh, stride_om, stride_on,  #
-        Z, H,  #
-        N_CTX: tl.constexpr,  #
-        BLOCK_M: tl.constexpr,  #
-        BLOCK_DMODEL: tl.constexpr,  #
-        BLOCK_N: tl.constexpr,  #
-        STAGE: tl.constexpr  #
-):
-    start_m = tl.program_id(0)
-    off_hz = tl.program_id(1)
-    off_z = off_hz // H
-    off_h = off_hz % H
-    qvk_offset = off_z.to(tl.int64) * stride_qz + off_h.to(
-        tl.int64) * stride_qh
-
-    # block pointers
-    Q_block_ptr = tl.make_block_ptr(
-        base=Q + qvk_offset,
-        shape=(N_CTX, BLOCK_DMODEL),
-        strides=(stride_qm, stride_qk),
-        offsets=(start_m * BLOCK_M, 0),
-        block_shape=(BLOCK_M, BLOCK_DMODEL),
-        order=(1, 0),
-    )
-    V_block_ptr = tl.make_block_ptr(
-        base=V + qvk_offset,
-        shape=(N_CTX, BLOCK_DMODEL),
-        strides=(stride_vk, stride_vn),
-        offsets=(0, 0),
-        block_shape=(BLOCK_N, BLOCK_DMODEL),
-        order=(1, 0),
-    )
-    K_block_ptr = tl.make_block_ptr(
-        base=K + qvk_offset,
-        shape=(BLOCK_DMODEL, N_CTX),
-        strides=(stride_kk, stride_kn),
-        offsets=(0, 0),
-        block_shape=(BLOCK_DMODEL, BLOCK_N),
-        order=(0, 1),
-    )
-    O_block_ptr = tl.make_block_ptr(
-        base=Out + qvk_offset,
-        shape=(N_CTX, BLOCK_DMODEL),
-        strides=(stride_om, stride_on),
-        offsets=(start_m * BLOCK_M, 0),
-        block_shape=(BLOCK_M, BLOCK_DMODEL),
-        order=(1, 0),
-    )
-    # initialize offsets
-    offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    offs_n = tl.arange(0, BLOCK_N)
-    # initialize pointer to m and l
-    m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32) + 1.0
-    acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-    # load scales
-    qk_scale = sm_scale
-    qk_scale *= 1.44269504  # 1/log(2)
-    # load q: it will stay in SRAM throughout
-    q = tl.load(Q_block_ptr)
-    # stage 1: off-band
-    # For causal = True, STAGE = 3 and _attn_fwd_inner gets 1 as its STAGE
-    # For causal = False, STAGE = 1, and _attn_fwd_inner gets 3 as its STAGE
-    if STAGE & 1:
-        acc, l_i, m_i = _attn_fwd_inner(
-            acc,
-            l_i,
-            m_i,
-            q,
-            K_block_ptr,
-            V_block_ptr,  #
-            start_m,
-            qk_scale,  #
-            BLOCK_M,
-            BLOCK_DMODEL,
-            BLOCK_N,  #
-            4 - STAGE,
-            offs_m,
-            offs_n,
-            N_CTX  #
-        )
-    # stage 2: on-band
-    if STAGE & 2:
-        # barrier makes it easier for compielr to schedule the
-        # two loops independently
-        tl.debug_barrier()
-        acc, l_i, m_i = _attn_fwd_inner(
-            acc,
-            l_i,
-            m_i,
-            q,
-            K_block_ptr,
-            V_block_ptr,  #
-            start_m,
-            qk_scale,  #
-            BLOCK_M,
-            BLOCK_DMODEL,
-            BLOCK_N,  #
-            2,
-            offs_m,
-            offs_n,
-            N_CTX  #
-        )
-    # epilogue
-    m_i += tl.math.log2(l_i)
-    acc = acc / l_i[:, None]
-    m_ptrs = M + off_hz * N_CTX + offs_m
-    tl.store(m_ptrs, m_i)
-    tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
 
 def attn_forward(q, k, v, M, o, grid, causal, sm_scale, kernel, load_dir):
@@ -388,7 +255,7 @@ def main():
                      device="cuda").normal_(mean=0.0,
                                             std=0.5).requires_grad_())
 
-    causal = True
+    causal = config.causal
     flops_per_matmul = 2.0 * Z * H * N_CTX * N_CTX * D_HEAD
     total_flops = 2 * flops_per_matmul
     if causal:
@@ -538,6 +405,144 @@ def main():
         tl.store(m_ptrs, m_i)
         tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
+    @triton_autotune_with_cache(
+        configs=[
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=2, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=8),
+            # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64}, num_stages=3, num_warps=8),
+            # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=8),
+            # triton.Config({'BLOCK_M': 256, 'BLOCK_N': 32}, num_stages=3, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=3, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=4, num_warps=4),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=3, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=7, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=7, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=6, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=5, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 32 }, num_stages=4, num_warps=8),
+            triton.Config({ 'BLOCK_M': 128, 'BLOCK_N': 64 }, num_stages=6, num_warps=4),
+        ],
+        key=['N_CTX'],
+        drl_config=config,  # just need the path really
+    )
+    @triton.jit
+    def _attn_tt(
+            Q, K, V, sm_scale, M, Out,  #
+            stride_qz, stride_qh, stride_qm, stride_qk,  #
+            stride_kz, stride_kh, stride_kn, stride_kk,  #
+            stride_vz, stride_vh, stride_vk, stride_vn,  #
+            stride_oz, stride_oh, stride_om, stride_on,  #
+            Z, H,  #
+            N_CTX: tl.constexpr,  #
+            BLOCK_M: tl.constexpr,  #
+            BLOCK_DMODEL: tl.constexpr,  #
+            BLOCK_N: tl.constexpr,  #
+            STAGE: tl.constexpr  #
+    ):
+        start_m = tl.program_id(0)
+        off_hz = tl.program_id(1)
+        off_z = off_hz // H
+        off_h = off_hz % H
+        qvk_offset = off_z.to(tl.int64) * stride_qz + off_h.to(
+            tl.int64) * stride_qh
+
+        # block pointers
+        Q_block_ptr = tl.make_block_ptr(
+            base=Q + qvk_offset,
+            shape=(N_CTX, BLOCK_DMODEL),
+            strides=(stride_qm, stride_qk),
+            offsets=(start_m * BLOCK_M, 0),
+            block_shape=(BLOCK_M, BLOCK_DMODEL),
+            order=(1, 0),
+        )
+        V_block_ptr = tl.make_block_ptr(
+            base=V + qvk_offset,
+            shape=(N_CTX, BLOCK_DMODEL),
+            strides=(stride_vk, stride_vn),
+            offsets=(0, 0),
+            block_shape=(BLOCK_N, BLOCK_DMODEL),
+            order=(1, 0),
+        )
+        K_block_ptr = tl.make_block_ptr(
+            base=K + qvk_offset,
+            shape=(BLOCK_DMODEL, N_CTX),
+            strides=(stride_kk, stride_kn),
+            offsets=(0, 0),
+            block_shape=(BLOCK_DMODEL, BLOCK_N),
+            order=(0, 1),
+        )
+        O_block_ptr = tl.make_block_ptr(
+            base=Out + qvk_offset,
+            shape=(N_CTX, BLOCK_DMODEL),
+            strides=(stride_om, stride_on),
+            offsets=(start_m * BLOCK_M, 0),
+            block_shape=(BLOCK_M, BLOCK_DMODEL),
+            order=(1, 0),
+        )
+        # initialize offsets
+        offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
+        offs_n = tl.arange(0, BLOCK_N)
+        # initialize pointer to m and l
+        m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
+        l_i = tl.zeros([BLOCK_M], dtype=tl.float32) + 1.0
+        acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
+        # load scales
+        qk_scale = sm_scale
+        qk_scale *= 1.44269504  # 1/log(2)
+        # load q: it will stay in SRAM throughout
+        q = tl.load(Q_block_ptr)
+        # stage 1: off-band
+        # For causal = True, STAGE = 3 and _attn_fwd_inner gets 1 as its STAGE
+        # For causal = False, STAGE = 1, and _attn_fwd_inner gets 3 as its STAGE
+        if STAGE & 1:
+            acc, l_i, m_i = _attn_fwd_inner(
+                acc,
+                l_i,
+                m_i,
+                q,
+                K_block_ptr,
+                V_block_ptr,  #
+                start_m,
+                qk_scale,  #
+                BLOCK_M,
+                BLOCK_DMODEL,
+                BLOCK_N,  #
+                4 - STAGE,
+                offs_m,
+                offs_n,
+                N_CTX  #
+            )
+        # stage 2: on-band
+        if STAGE & 2:
+            # barrier makes it easier for compielr to schedule the
+            # two loops independently
+            tl.debug_barrier()
+            acc, l_i, m_i = _attn_fwd_inner(
+                acc,
+                l_i,
+                m_i,
+                q,
+                K_block_ptr,
+                V_block_ptr,  #
+                start_m,
+                qk_scale,  #
+                BLOCK_M,
+                BLOCK_DMODEL,
+                BLOCK_N,  #
+                2,
+                offs_m,
+                offs_n,
+                N_CTX  #
+            )
+        # epilogue
+        m_i += tl.math.log2(l_i)
+        acc = acc / l_i[:, None]
+        m_ptrs = M + off_hz * N_CTX + offs_m
+        tl.store(m_ptrs, m_i)
+        tl.store(O_block_ptr, acc.to(Out.type.element_ty))
+
     # by default it is half
     o = torch.empty_like(q)
     M = torch.empty((q.shape[0], q.shape[1], q.shape[2]),
@@ -554,7 +559,7 @@ def main():
     fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd,
                            load_dir)
     tri_out = triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale,
-                                  _attn_fwd_triton)
+                                  _attn_tt)
 
     ## TEST
     assert torch.allclose(tri_out, fgk_out, atol=1e-2, rtol=0)
@@ -685,7 +690,7 @@ def main():
             grid = (triton.cdiv(q.shape[2],
                                 BLOCK_M), q.shape[0] * q.shape[1], 1)
             fn = lambda: triton_attn_forward(q, k, v, M, o, grid, causal,
-                                             sm_scale, _attn_fwd_triton)
+                                             sm_scale, _attn_tt)
             if mode == "bwd":
                 o = fn()
                 do = torch.randn_like(o)
@@ -714,7 +719,7 @@ def main():
     if isinstance(df, list):
         assert len(df) == 1, f'expected 1 row, got {len(df)}'
         df = df[0]
-    fp = f"data/{GPU}/results/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{config.seed}.pkl"
+    fp = f"data/{GPU}/results/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{config.causal}_{config.seed}.pkl"
     if not os.path.exists(fp):
         if not os.path.exists(f"data/{GPU}/results/flash_attn"):
             os.makedirs(f"data/{GPU}/results/flash_attn")

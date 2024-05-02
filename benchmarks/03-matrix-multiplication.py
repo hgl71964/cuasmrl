@@ -27,9 +27,9 @@ class Config:
     bench: int = 0
 
     # Workload
-    wl: int = 512
-    factor: int = 4
-
+    m: int = 512
+    n: int = 4
+    k: int = 4
     # RL
     train: int = 1
     log: int = 1
@@ -73,8 +73,9 @@ def parse_args() -> Config:
     parser.add_argument("--load", type=str)
     parser.add_argument("--bench", type=int, default=0)
 
-    parser.add_argument("--wl", type=int, default=512)
-    parser.add_argument("--factor", type=int, default=4)
+    parser.add_argument("-m", type=int, default=128)
+    parser.add_argument("-n", type=int, default=128)
+    parser.add_argument("-k", type=int, default=512)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -142,9 +143,7 @@ def main():
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
 
-    wl= config.wl
-    factor = config.factor
-    M, N, K = wl, wl, wl * factor
+    M, N, K = config.m, config.n, config.k
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
@@ -419,7 +418,6 @@ def main():
             args={},
         ))
     def benchmark(M, N, provider):
-        K=factor*M
         print(f'[BENCH]: {provider}; {M}; {N}; {K}')
         a = torch.randn((M, K), device='cuda', dtype=torch.float16)
         b = torch.randn((K, N), device='cuda', dtype=torch.float16)
