@@ -61,7 +61,7 @@ def get_min_stall_count(cc, opcode):
             return 19
         return 7
     elif cc == (8, 0):
-        return 8
+        return 12
     elif cc == (8, 6):
         return 13
     else:
