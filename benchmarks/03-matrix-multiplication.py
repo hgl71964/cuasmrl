@@ -27,9 +27,9 @@ class Config:
     bench: int = 0
 
     # Workload
-    m: int = 512
-    n: int = 4
-    k: int = 4
+    m: int = 1
+    n: int = 1
+    k: int = 1
     # RL
     train: int = 1
     log: int = 1
@@ -73,9 +73,9 @@ def parse_args() -> Config:
     parser.add_argument("--load", type=str)
     parser.add_argument("--bench", type=int, default=0)
 
-    parser.add_argument("-m", type=int, default=128)
-    parser.add_argument("-n", type=int, default=128)
-    parser.add_argument("-k", type=int, default=512)
+    parser.add_argument("-m", type=int, default=512)
+    parser.add_argument("-n", type=int, default=512)
+    parser.add_argument("-k", type=int, default=2048)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
