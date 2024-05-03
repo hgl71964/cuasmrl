@@ -126,7 +126,7 @@ GPU = get_gpu_name()
 
 
 @triton.jit
-def ff_tt(
+def tt_ff(
     a_ptr, w1_ptr, w3_ptr, out_ptr, rms_w_ptr,
     M, N, K,
     stride_am, stride_ak,
@@ -215,7 +215,7 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
     x_reshape = x.reshape(M, K)
     out = torch.empty((M, N), dtype=x.dtype, device=x.device)
     grid = lambda META: (triton.cdiv(META["M"], META["BLOCK_SIZE_M"]) * triton.cdiv(META["N"], META["BLOCK_SIZE_N"]),)
-    ff_tt[grid](
+    tt_ff[grid](
         x_reshape, w1_t, w3_t, out, rms_w,
         M, N, K,
         *x_reshape.stride(),

@@ -312,6 +312,7 @@ class TrionAutotunerWithCache(TritonAutotuner):
                 self.pre_hook(args, reset_only=True)
                 self.configs_timings = timings
             config = self.cache[key]
+            self._write_config(config)
 
         self.best_config = config
         full_nargs = {**self.nargs, **kwargs, **self.best_config.kwargs}
@@ -328,6 +329,16 @@ class TrionAutotunerWithCache(TritonAutotuner):
         )
         self.nargs = None
         return ret
+
+    def _write_config(self, config):
+        gpu_name = get_gpu_name()
+        dir_path = self.save_dir
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        cache_path = f'{dir_path}/cache_config.pkl'
+        with open(cache_path, 'wb') as f:
+            pickle.dump(config, f)
 
 
 def triton_autotune_with_cache(configs,

@@ -556,10 +556,8 @@ def main():
         load_dir = f'data/{GPU}/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{causal}'
     else:
         load_dir = config.load
-    fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd,
-                           load_dir)
-    tri_out = triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale,
-                                  tt_attn)
+    fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd, load_dir)
+    tri_out = triton_attn_forward(q, k, v, M, o, grid, causal, sm_scale, tt_attn)
 
     ## TEST
     assert torch.allclose(tri_out, fgk_out, atol=1e-2, rtol=0)
