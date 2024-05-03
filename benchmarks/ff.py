@@ -225,8 +225,8 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
         *rms_w.stride(),
         USE_FP8=w1_t.dtype != torch.float16,
         EPS=1e-6,
-        BLOCK_SIZE_M=16, BLOCK_SIZE_N=16, BLOCK_SIZE_K=64,
-        num_stages=2, num_warps=4
+        BLOCK_SIZE_M=16, BLOCK_SIZE_N=128, BLOCK_SIZE_K=64,
+        num_stages=4, num_warps=4
     )
     out = out.view(batch, seq_len, -1)
     return out
@@ -296,8 +296,8 @@ if __name__ == '__main__':
 
     @fgk_autotune(
         configs=[
-		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
-		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
+		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
+		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64, }, num_stages=4, num_warps=4),
 
     ],
         key=['M', 'N', 'K'],

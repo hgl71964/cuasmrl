@@ -264,7 +264,7 @@ def main():
 
     # args
     config.total_flops = total_flops
-    config.save_dir = f'{GPU}/flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}'
+    config.save_dir = f'{GPU}/flash_attn/{Z}_{H}_{N_CTX}_{D_HEAD}_{causal}'
 
     @fgk_autotune(
         configs=[
@@ -553,7 +553,7 @@ def main():
     if config.load is None:
         load_dir = None
     elif config.load == "auto":
-        load_dir = f'data/{GPU}/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}'
+        load_dir = f'data/{GPU}/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{causal}'
     else:
         load_dir = config.load
     fgk_out = attn_forward(q, k, v, M, o, grid, causal, sm_scale, _attn_fwd,
@@ -657,7 +657,7 @@ def main():
             if config.load is None:
                 load_dir = None
             elif config.load == "auto":
-                load_dir = f'data/{GPU}/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}'
+                load_dir = f'data/{GPU}/flash_attn/{config.Z}_{config.H}_{config.wl}_{config.D_HEAD}_{causal}'
             else:
                 load_dir = config.load
             fn = lambda: attn_forward(q, k, v, M, o, grid, causal, sm_scale,
