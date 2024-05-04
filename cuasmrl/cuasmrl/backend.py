@@ -70,7 +70,7 @@ class Env(gym.Env):
 
         # spaces
         sample = Sample(self.eng.kernel_section, self.eng)
-        dims, total, mem_loc, max_src_len = sample.get_mutable()
+        dims, total, mem_loc, max_src_len = sample.static_analysis()
         logger.info(
             f'[INIT] dims: {dims}; total kernel lineno: {total}; mem_loc: {len(mem_loc)}; max_src_len: {max_src_len};'
         )

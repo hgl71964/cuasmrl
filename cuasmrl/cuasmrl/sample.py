@@ -10,6 +10,7 @@ CC = get_gpu_cc()
 MEMORY_OPS, BAN_OPS = get_mutatable_ops(CC)
 MEMORY_OPS_INDEX = {op: i for i, op in enumerate(MEMORY_OPS)}
 ST_WINDOW = get_st_window(CC)
+MIN_ST_ANALYSIS = {}
 
 logger = get_logger(__name__)
 
@@ -65,7 +66,7 @@ class Sample:
         else:
             assert False, f'invalid action: {action}'
 
-    def get_mutable(self) -> list[int]:
+    def static_analysis(self) -> list[int]:
         # pre-scan to obtain assembly file stats
         debug = False
         if os.getenv("SIP_DEBUG", "0") == "1":
@@ -110,17 +111,65 @@ class Sample:
                         logger.warning(f'ban {ctrl_code} {opcode}')
                     continue
 
+                is_mem = False
                 for op in MEMORY_OPS:
                     if op in opcode:
                         if debug:
                             logger.info(f'mutable {ctrl_code} {opcode}')
                         self.candidates.append(i)
                         # lines.append(line)
+                        is_mem = True
                         break
+                if is_mem:
+                    self._find_users(i, line, src, debug)
 
         # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.dims, kernel_lineno_cnt, mem_loc, max_src_len
+
+    def _find_users(self, idx, line, src, debug):
+        for src_loc in src:
+            if src_loc.startswith('UR'):
+                # can always skip uniform register?
+                continue
+
+            j = 1
+            accum = 0
+            # print('line: ', line)
+            while True:
+                tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+                    self.kernel_section[idx - j].strip())
+                if tmp_ctrl is None:
+                    # if it is a label, don't care stall count
+                    logger.warning(
+                        f'reach a label before resolving users; {line}')
+
+                    # FIXME should break?
+                    break
+
+                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+                stall_count = int(stall_count[1:-1])
+                accum += stall_count
+
+                # print(self.kernel_section[idx - j].strip())
+                # print(tmp_dst)
+
+                if src_loc == tmp_dst:
+                    if tmp_opcode in MIN_ST_ANALYSIS:
+                        # logger.info(f'updating {line} with {accum} and {MIN_ST_ANALYSIS[tmp_opcode]}')
+                        MIN_ST_ANALYSIS[tmp_opcode] = min(
+                            MIN_ST_ANALYSIS[tmp_opcode], accum)
+                    else:
+                        # logger.info(f'adding {line} with {accum}')
+                        MIN_ST_ANALYSIS[tmp_opcode] = accum
+                    logger.info(f'resolve {tmp_opcode}')
+                    break
+
+                j += 1
+                if j >= 50:
+                    logger.warning(f'cannot resolve stall count {line}')
+                    break
+                    # raise RuntimeError(f'cannot reolve stall count {line}')
 
     def embedding(self, space, mem_loc, max_src_len):
         self.candidates.clear()
@@ -303,6 +352,9 @@ class Sample:
 
                 # move down check
                 min_st = get_min_stall_count(CC, p_opcode, tmp_opcode)
+                if p_opcode in MIN_ST_ANALYSIS:
+                    min_st = MIN_ST_ANALYSIS[p_opcode]
+
                 if p_dest in tmp_src and total <= min_st:
                     mask[0] = 0
 
@@ -326,6 +378,9 @@ class Sample:
 
                 # moveup check
                 min_st = get_min_stall_count(CC, opcode, tmp_opcode)
+                if tmp_opcode in MIN_ST_ANALYSIS:
+                    min_st = MIN_ST_ANALYSIS[tmp_opcode]
+
                 if tmp_dst in src and total <= min_st:
                     mask[0] = 0
 
@@ -370,33 +425,36 @@ class Sample:
 
                 # moveup check
                 min_st = get_min_stall_count(CC, p_opcode, tmp_opcode)
+                if tmp_opcode in MIN_ST_ANALYSIS:
+                    min_st = MIN_ST_ANALYSIS[tmp_opcode]
+
                 if tmp_dst in p_src and total <= min_st:
                     mask[1] = 0
 
             ## for memOp
-            total = int(self_stall_count[1:-1])
-            for i in range(2, 2 + ST_WINDOW):
-                if mask[1] == 0:
-                    break
+            # total = int(self_stall_count[1:-1])
+            # for i in range(2, 2 + ST_WINDOW):
+            #     if mask[1] == 0:
+            #         break
 
-                try:
-                    tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
-                        kernel_section[lineno + i].strip())
-                except:
-                    # NOTE: decode gets error when (lineno + i) goes out of bounds,
-                    # this is a hack to skip
-                    tmp_ctrl = None
-                if tmp_ctrl is None:
-                    # if it is a label, don't care stall count
-                    continue
-                *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
+            #     try:
+            #         tmp_ctrl, *_, tmp_opcode, tmp_dst, tmp_src = self.engine.decode(
+            #             kernel_section[lineno + i].strip())
+            #     except:
+            #         # NOTE: decode gets error when (lineno + i) goes out of bounds,
+            #         # this is a hack to skip
+            #         tmp_ctrl = None
+            #     if tmp_ctrl is None:
+            #         # if it is a label, don't care stall count
+            #         continue
+            #     *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
 
-                # move down check
-                min_st = get_min_stall_count(CC, opcode, tmp_opcode)
-                if dst in tmp_src and total <= min_st:
-                    mask[1] = 0
+            #     # move down check
+            #     min_st = get_min_stall_count(CC, opcode, tmp_opcode)
+            #     if dst in tmp_src and total <= min_st:
+            #         mask[1] = 0
 
-                stall_count = int(stall_count[1:-1])
-                total += stall_count
+            #     stall_count = int(stall_count[1:-1])
+            #     total += stall_count
 
         return mask
