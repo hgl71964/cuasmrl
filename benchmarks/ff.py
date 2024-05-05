@@ -137,14 +137,24 @@ def tt_ff(
     USE_FP8: tl.constexpr,
     EPS: tl.constexpr,
     BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+    GROUP_SIZE_M: tl.constexpr,
 ):
     """
     w1 and w3 are weights (linear layers)
     F.silu(w1(x)) * w3(x)
     """
+    # pid = tl.program_id(axis=0)
+    # pid_m = pid // tl.cdiv(N, BLOCK_SIZE_N)
+    # pid_n = pid % tl.cdiv(N, BLOCK_SIZE_N)
     pid = tl.program_id(axis=0)
-    pid_m = pid // tl.cdiv(N, BLOCK_SIZE_N)
-    pid_n = pid % tl.cdiv(N, BLOCK_SIZE_N)
+    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
+    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+    num_pid_in_group = GROUP_SIZE_M * num_pid_n
+    group_id = pid // num_pid_in_group
+    first_pid_m = group_id * GROUP_SIZE_M
+    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+    pid_m = first_pid_m + (pid % group_size_m)
+    pid_n = (pid % num_pid_in_group) // group_size_m
 
     offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
     offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
@@ -225,8 +235,9 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
         *rms_w.stride(),
         USE_FP8=w1_t.dtype != torch.float16,
         EPS=1e-6,
-        BLOCK_SIZE_M=16, BLOCK_SIZE_N=128, BLOCK_SIZE_K=64,
-        num_stages=4, num_warps=4
+        BLOCK_SIZE_M=64, BLOCK_SIZE_N=32, BLOCK_SIZE_K=32,
+        num_stages=5, num_warps=2,
+        GROUP_SIZE_M=8,
     )
     out = out.view(batch, seq_len, -1)
     return out
@@ -297,7 +308,7 @@ if __name__ == '__main__':
     @fgk_autotune(
         configs=[
 		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
-		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64, }, num_stages=4, num_warps=4),
+		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5, num_warps=2),
 
     ],
         key=['M', 'N', 'K'],
@@ -317,14 +328,24 @@ if __name__ == '__main__':
         USE_FP8: tl.constexpr,
         EPS: tl.constexpr,
         BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+        GROUP_SIZE_M: tl.constexpr,
     ):
         """
         w1 and w3 are weights (linear layers)
         F.silu(w1(x)) * w3(x)
         """
+        # pid = tl.program_id(axis=0)
+        # pid_m = pid // tl.cdiv(N, BLOCK_SIZE_N)
+        # pid_n = pid % tl.cdiv(N, BLOCK_SIZE_N)
         pid = tl.program_id(axis=0)
-        pid_m = pid // tl.cdiv(N, BLOCK_SIZE_N)
-        pid_n = pid % tl.cdiv(N, BLOCK_SIZE_N)
+        num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
+        num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+        num_pid_in_group = GROUP_SIZE_M * num_pid_n
+        group_id = pid // num_pid_in_group
+        first_pid_m = group_id * GROUP_SIZE_M
+        group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+        pid_m = first_pid_m + (pid % group_size_m)
+        pid_n = (pid % num_pid_in_group) // group_size_m
 
         offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
         offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
