@@ -17,16 +17,16 @@ MUTATABLE_OPS = {
         # ['LDGSTS', 'LDG', 'STG'],
         # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
-        ['LDS', 'LDGDEPBAR', 'LDGSTS', 'LDG', 'STG'],
-        ['LDSM', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
+        ['LDS', 'LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
     ),
     # A100
     (8, 0): (
         # ['LDGSTS', 'LDG', 'STG'],
         # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
         # ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
-        ['LDS', 'LDGDEPBAR', 'LDGSTS', 'LDG', 'STG'],
-        ['LDSM', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
+        ['LDS', 'LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
     ),
     (7, 5): (
         # memory_ops
@@ -189,8 +189,8 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
         # LDSM must load from consecutive memory address...
 
         # from conv
-        if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
-            return False
+        # if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
+        #     return False
         # from int4
         # elif prev_opcode.startswith('LDG') and cur_opcode.startswith('IMAD.X'):
         #     return False
@@ -234,8 +234,8 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
         # LDSM must load from consecutive memory address...
 
         # from conv
-        if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
-            return False
+        # if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
+        #     return False
         # from int4
         # elif prev_opcode.startswith('LDG') and cur_opcode.startswith('IMAD.X'):
         #     return False
