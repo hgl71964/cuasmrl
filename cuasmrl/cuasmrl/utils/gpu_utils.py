@@ -14,10 +14,11 @@ MUTATABLE_OPS = {
     ),
     # RTX3000
     (8, 6): (
-        # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDGSTS', 'LDG', 'STG'],
-        # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
-        ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
+        # ['LDGSTS', 'LDG', 'STG'],
+        # ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        # ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
+        ['LDS', 'LDGDEPBAR', 'LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
     ),
     # A100
     (8, 0): (
@@ -151,7 +152,7 @@ def get_st_window(cc):
     elif cc == (8, 0):
         return 10
     elif cc == (8, 6):
-        return 8
+        return 10
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
@@ -213,10 +214,44 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
-        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
-        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+        if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
+
+        # LDGEPBAR
+        if prev_opcode.startswith('LDGDEPBAR') and cur_opcode.startswith(
+                'DEPBAR'):
+            return False
+        # if prev_opcode.startswith('LDGDEPBAR') and cur_opcode.startswith('LDGSTS'):
+        #     return False
+        if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
+                'LDGDEPBAR'):
+            return False
+        # if prev_opcode.startswith('DEPBAR') and cur_opcode.startswith('LDGDEPBAR'):
+        #     return False
+
+        # LDSM must load from consecutive memory address...
+
+        # from conv
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
+            return False
+        # from int4
+        # elif prev_opcode.startswith('LDG') and cur_opcode.startswith('IMAD.X'):
+        #     return False
+
+        # predicate dependencies
+        if cur_predicate is not None:
+            if cur_predicate.startswith('@'):
+                cur_predicate = cur_predicate[1:]
+            if cur_predicate == prev_dst:
+                return False
+        if prev_predicate is not None:
+            if prev_predicate.startswith('@'):
+                prev_predicate = prev_predicate[1:]
+            if prev_predicate == cur_dst:
+                return False
+
         return True
     else:
         raise RuntimeError(f'unsupported compute capability: {cc}')
