@@ -114,7 +114,8 @@ class Sample:
 
                 is_mem = False
                 for op in MEMORY_OPS:
-                    if op in opcode:
+                    # if op in opcode:
+                    if opcode.startswith(op):
                         if debug:
                             logger.info(f'mutable {ctrl_code} {opcode}')
                         self.candidates.append(i)
@@ -254,7 +255,8 @@ class Sample:
 
         if not ban:
             for op in MEMORY_OPS:
-                if op in opcode:
+                # if op in opcode:
+                if opcode.startswith(op):
                     memory_op = MEMORY_OPS_INDEX[op]
                     # memory_op = 1
                     break
