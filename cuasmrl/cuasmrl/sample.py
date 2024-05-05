@@ -103,7 +103,8 @@ class Sample:
                 # opcode is like: LDG.E.128.SYS; i.e. {inst}.{modifier*}
                 ban = False
                 for op in BAN_OPS:
-                    if op in opcode:
+                    # if op in opcode:
+                    if opcode.startswith(op):
                         ban = True
                         break
                 if ban:
@@ -204,6 +205,7 @@ class Sample:
                     mask = self._generate_mask(
                         ctrl_code,
                         opcode,
+                        predicate,
                         dst,
                         src,
                         self.kernel_section,
@@ -245,7 +247,8 @@ class Sample:
         memory_op = -1
         ban = False
         for op in BAN_OPS:
-            if op in opcode:
+            # if op in opcode:
+            if opcode.startswith(op):
                 ban = True
                 break
 
@@ -292,6 +295,7 @@ class Sample:
         self,
         ctrl_code,
         opcode,
+        predicate,
         dst,
         src,
         kernel_section,
@@ -307,7 +311,7 @@ class Sample:
         w = -1 if w[1] == '-' else int(w[1])
 
         # if MemOp were to move up
-        p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
+        p_ctrl_code, _, p_predicate, p_opcode, p_dest, p_src = self.engine.decode(
             prev_line)
         if p_ctrl_code is None:
             # NOT move across labels
@@ -317,12 +321,16 @@ class Sample:
             mask[0] = 0
         elif dst in p_src:
             mask[0] = 0
-        # ban ops
-        elif p_opcode in BAN_OPS:
-            mask[0] = 0
-        elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst):
+        elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst,
+                                   p_predicate, predicate):
             mask[0] = 0
         else:
+            # ban op
+            for op in BAN_OPS:
+                # if op in p_opcode:
+                if p_opcode.startswith(op):
+                    mask[0] = 0
+
             # scoreboard
             _, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
                 p_ctrl_code)
@@ -385,7 +393,7 @@ class Sample:
                     mask[0] = 0
 
         # if MemOp were to move down
-        p_ctrl_code, _, _, p_opcode, p_dest, p_src = self.engine.decode(
+        p_ctrl_code, _, p_predicate, p_opcode, p_dest, p_src = self.engine.decode(
             post_line)
         if p_ctrl_code is None:
             # NOT move across labels
@@ -395,12 +403,16 @@ class Sample:
             mask[1] = 0
         elif p_dest in src:
             mask[1] = 0
-        # ban ops
-        elif p_opcode in BAN_OPS:
-            mask[1] = 0
-        elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest):
+        elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest,
+                                   predicate, p_predicate):
             mask[1] = 0
         else:
+            # ban op
+            for op in BAN_OPS:
+                # if op in p_opcode:
+                if p_opcode.startswith(op):
+                    mask[1] = 0
+
             # scoreboard
             p_wait, *_ = self.engine.decode_ctrl_code(p_ctrl_code)
             if r in p_wait or w in p_wait:
@@ -431,7 +443,7 @@ class Sample:
                 if tmp_dst in p_src and total <= min_st:
                     mask[1] = 0
 
-            ## for memOp
+            ## for memOp (users of memOp will set deps barrier)
             # total = int(self_stall_count[1:-1])
             # for i in range(2, 2 + ST_WINDOW):
             #     if mask[1] == 0:

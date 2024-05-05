@@ -21,10 +21,12 @@ MUTATABLE_OPS = {
     ),
     # A100
     (8, 0): (
-        # ['LDG', 'STG', 'LDS', 'LDSM'],  # memory_ops
-        ['LDG', 'STG'],
-        # ['LDGDEPBAR', 'DEPBAR', 'LDGSTS', 'EXIT', 'BAR.SYNC'],  # ban_ops
-        ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'IADD3.X'],  # ban_ops
+        # ['LDGSTS', 'LDG', 'STG'],
+        ['LDSM', 'LDS', 'LDGSTS', 'LDG', 'STG'],
+        ['LDGDEPBAR', 'DEPBAR', 'EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
+
+        # ['LDGDEPBAR'],
+        # ['EXIT', 'BAR.SYNC', 'BRA'],  # ban_ops
     ),
     (7, 5): (
         # memory_ops
@@ -155,7 +157,8 @@ def get_st_window(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
+def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
+                      prev_predicate, cur_predicate):
     if cc == (7, 5):
         return True
     elif cc == (7, 0):
@@ -166,10 +169,30 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst):
             if prev_dst == cur_dst:
                 # it seems LDGSTS follows certain order
                 return False
-        elif prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('LOP3'):
             return False
-        elif prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
+        if prev_opcode.startswith('STG') and cur_opcode.startswith('STG'):
             return False
+
+        # from conv
+        if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
+            return False
+        # from int4
+        # elif prev_opcode.startswith('LDG') and cur_opcode.startswith('IMAD.X'):
+        #     return False
+
+        # predicate
+        if cur_predicate is not None:
+            if cur_predicate.startswith('@'):
+                cur_predicate = cur_predicate[1:]
+            if cur_predicate == prev_dst:
+                return False
+        if prev_predicate is not None:
+            if prev_predicate.startswith('@'):
+                prev_predicate = prev_predicate[1:]
+            if prev_predicate == cur_dst:
+                return False
+
         return True
     elif cc == (8, 6):
         if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
