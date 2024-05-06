@@ -125,16 +125,28 @@ class Sample:
                 if is_mem:
                     self._find_users(i, line, src, debug)
 
-        # dimension of the optimization problem
+        logger.info('stall count analysis: ')
+        remove = []
         for k, v in MIN_ST_ANALYSIS.items():
-            logger.info(f'{k} -> {v}')
+            if v > 20:
+                remove.append(k)
+                logger.warning(f'pruning {k} -> {v}')
+            elif k.startswith('LDS'):
+                remove.append(k)
+                logger.warning(f'pruning {k} -> {v}')
+            else:
+                logger.info(f'{k} -> {v}')
+        for k in remove:
+            MIN_ST_ANALYSIS.pop(k)
+
+        # dimension of the optimization problem
         self.dims = len(self.candidates)
         return self.dims, kernel_lineno_cnt, mem_loc, max_src_len
 
     def _find_users(self, idx, line, src, debug):
         for src_loc in src:
             if src_loc.startswith('UR'):
-                # can always skip uniform register?
+                # XXX can always skip uniform register?
                 continue
 
             j = 1
@@ -148,7 +160,7 @@ class Sample:
                     logger.warning(
                         f'reach a label before resolving users; {line}')
 
-                    # FIXME should break?
+                    # FIXME should break? just skip?
                     break
 
                 *_, stall_count = self.engine.decode_ctrl_code(tmp_ctrl)
