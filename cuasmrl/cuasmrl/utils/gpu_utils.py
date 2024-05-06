@@ -186,6 +186,10 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
         # if prev_opcode.startswith('DEPBAR') and cur_opcode.startswith('LDGDEPBAR'):
         #     return False
 
+        # from bmm
+        if prev_opcode.startswith('MOV') and cur_opcode.startswith('LDS.128'):
+            return False
+
         # LDSM must load from consecutive memory address...
 
         # from conv
@@ -230,6 +234,10 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
             return False
         # if prev_opcode.startswith('DEPBAR') and cur_opcode.startswith('LDGDEPBAR'):
         #     return False
+
+        # from bmm
+        if prev_opcode.startswith('MOV') and cur_opcode.startswith('LDS.128'):
+            return False
 
         # LDSM must load from consecutive memory address...
 
