@@ -126,6 +126,8 @@ class Sample:
                     self._find_users(i, line, src, debug)
 
         # dimension of the optimization problem
+        for k, v in MIN_ST_ANALYSIS.items():
+            logger.info(f'{k} -> {v}')
         self.dims = len(self.candidates)
         return self.dims, kernel_lineno_cnt, mem_loc, max_src_len
 
