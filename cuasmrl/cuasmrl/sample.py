@@ -337,8 +337,17 @@ class Sample:
             mask[0] = 0
         elif dst in p_src:
             mask[0] = 0
-        elif not check_adj_opcodes(CC, p_opcode, opcode, p_dest, dst,
-                                   p_predicate, predicate):
+        elif not check_adj_opcodes(
+                CC,
+                p_opcode,
+                opcode,
+                p_dest,
+                dst,
+                p_src,
+                src,
+                p_predicate,
+                predicate,
+        ):
             mask[0] = 0
         else:
             # ban op
@@ -419,8 +428,17 @@ class Sample:
             mask[1] = 0
         elif p_dest in src:
             mask[1] = 0
-        elif not check_adj_opcodes(CC, opcode, p_opcode, dst, p_dest,
-                                   predicate, p_predicate):
+        elif not check_adj_opcodes(
+                CC,
+                opcode,
+                p_opcode,
+                dst,
+                p_dest,
+                src,
+                p_src,
+                predicate,
+                p_predicate,
+        ):
             mask[1] = 0
         else:
             # ban op

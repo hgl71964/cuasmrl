@@ -158,7 +158,7 @@ def main():
             print(src)
             print()
 
-            if i > 20:
+            if i > 5:
                 break
 
 if __name__ == "__main__":

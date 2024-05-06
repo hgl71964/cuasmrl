@@ -391,10 +391,10 @@ class MutationEngine:
                     # hidden deps
                     if r.endswith('.64'):
                         val = int(tmp[1:])
-                        base = val//2
-                        mod = val%2
-                        comp = 1-mod
-                        hidden = base*2+comp
+                        base = val // 2
+                        mod = val % 2
+                        comp = 1 - mod
+                        hidden = base * 2 + comp
                         processed_src.append(f'R{hidden}')
 
             elif word.startswith('c'):

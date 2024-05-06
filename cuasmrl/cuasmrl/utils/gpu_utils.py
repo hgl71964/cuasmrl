@@ -157,8 +157,17 @@ def get_st_window(cc):
         raise RuntimeError(f'unsupported compute capability: {cc}')
 
 
-def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
-                      prev_predicate, cur_predicate):
+def check_adj_opcodes(
+    cc,
+    prev_opcode,
+    cur_opcode,
+    prev_dst,
+    cur_dst,
+    prev_src,
+    cur_src,
+    prev_predicate,
+    cur_predicate,
+):
     if cc == (7, 5):
         return True
     elif cc == (7, 0):
@@ -190,7 +199,10 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
         if prev_opcode.startswith('MOV') and cur_opcode.startswith('LDS.128'):
             return False
 
-        # LDSM must load from consecutive memory address...
+        # LDS/LDSM must load from consecutive memory address...
+        if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
+            if set(prev_src).intersection(cur_src):
+                return False
 
         # from conv
         # if prev_opcode.startswith('LDG') and cur_opcode.startswith('CS2R'):
@@ -238,6 +250,9 @@ def check_adj_opcodes(cc, prev_opcode, cur_opcode, prev_dst, cur_dst,
         # from bmm
         if prev_opcode.startswith('MOV') and cur_opcode.startswith('LDS.128'):
             return False
+        if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
+            if set(prev_src).intersection(cur_src):
+                return False
 
         # LDSM must load from consecutive memory address...
 
