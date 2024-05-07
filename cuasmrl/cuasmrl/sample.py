@@ -357,11 +357,11 @@ class Sample:
                     mask[0] = 0
 
             # scoreboard
-            _, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
+            p_waits, p_r, p_w, _, p_stall_count = self.engine.decode_ctrl_code(
                 p_ctrl_code)
             p_r = -1 if p_r[1] == '-' else int(p_r[1])
             p_w = -1 if p_w[1] == '-' else int(p_w[1])
-            if p_r in waits or p_w in waits:
+            if p_r in waits or p_w in waits or r in p_waits or w in p_waits:
                 mask[0] = 0
 
             # stall count

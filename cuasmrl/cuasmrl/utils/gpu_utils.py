@@ -199,6 +199,14 @@ def check_adj_opcodes(
         if prev_opcode.startswith('MOV') and cur_opcode.startswith('LDS.128'):
             return False
 
+        # from ff
+        if cur_opcode.startswith('LDGSTS'):
+            if prev_dst == cur_dst:
+                return False
+        if prev_opcode.startswith('LDGSTS') and cur_opcode.startswith(
+                'UIADD3.X'):
+            return False
+
         # LDS/LDSM must load from consecutive memory address...
         if prev_opcode.startswith('LDS') and cur_opcode.startswith('LDS'):
             if set(prev_src).intersection(cur_src):

@@ -125,89 +125,9 @@ GPU = get_gpu_name()
 
 
 
-@triton.jit
-def tt_ff(
-    a_ptr, w1_ptr, w3_ptr, out_ptr, rms_w_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_w1k, stride_w1n,
-    stride_w3k, stride_w3n,
-    stride_outm, stride_outn,
-    stride_rms_w,
-    USE_FP8: tl.constexpr,
-    EPS: tl.constexpr,
-    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
-    GROUP_SIZE_M: tl.constexpr,
-):
-    """
-    w1 and w3 are weights (linear layers)
-    F.silu(w1(x)) * w3(x)
-    """
-    # pid = tl.program_id(axis=0)
-    # pid_m = pid // tl.cdiv(N, BLOCK_SIZE_N)
-    # pid_n = pid % tl.cdiv(N, BLOCK_SIZE_N)
-    pid = tl.program_id(axis=0)
-    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
-    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
-    num_pid_in_group = GROUP_SIZE_M * num_pid_n
-    group_id = pid // num_pid_in_group
-    first_pid_m = group_id * GROUP_SIZE_M
-    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
-    pid_m = first_pid_m + (pid % group_size_m)
-    pid_n = (pid % num_pid_in_group) // group_size_m
-
-    offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
-    offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
-    offs_k = tl.arange(0, BLOCK_SIZE_K)
-    a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)
-    w1_ptrs = w1_ptr + (offs_k[:, None] * stride_w1k + offs_bn[None, :] * stride_w1n)
-    w3_ptrs = w3_ptr + (offs_k[:, None] * stride_w3k + offs_bn[None, :] * stride_w3n)
-    acc1 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
-    acc2 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
-
-    rms_w_ptrs = rms_w_ptr + tl.arange(0, BLOCK_SIZE_K)[None, :] * stride_rms_w
-    a_sum = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_K), dtype=tl.float32)
-    for _ in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
-        a = tl.load(a_ptrs)
-        a_sum += tl.math.pow(a.to(tl.float32), 2)
-        rms_w = tl.load(rms_w_ptrs)
-        if USE_FP8:
-            rms_w = rms_w.to(tl.float8e5, bitcast=True)
-            rms_w = rms_w.to(tl.float16)
-        a = a * rms_w
-        b = tl.load(w1_ptrs)
-        if USE_FP8:
-            b = b.to(tl.float8e5, bitcast=True)
-            b = b.to(tl.float32)
-            b = b.to(tl.float16)
-        acc1 += tl.dot(a, b)
-        c = tl.load(w3_ptrs)
-        if USE_FP8:
-            c = c.to(tl.float8e5, bitcast=True)
-            c = c.to(tl.float32)
-            c = c.to(tl.float16)
-        acc2 += tl.dot(a, c)
-
-        a_ptrs += BLOCK_SIZE_K * stride_ak
-        w1_ptrs += BLOCK_SIZE_K * stride_w1k
-        w3_ptrs += BLOCK_SIZE_K * stride_w3k
-
-        rms_w_ptrs += BLOCK_SIZE_K * stride_rms_w
-
-    a_mean = tl.sum(a_sum, axis=1) / K + EPS
-    a_norm = tl.math.rsqrt(a_mean)
-    acc1 = acc1 * a_norm[:, None]
-    acc2 = acc2 * a_norm[:, None]
-    accumulator = (acc1 * tl.sigmoid(acc1)) * acc2
-
-    offs_outm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
-    offs_outn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-    out_ptrs = out_ptr + (stride_outm * offs_outm[:, None] + stride_outn * offs_outn[None, :])
-    out_mask = (offs_outm[:, None] < M) & (offs_outn[None, :] < N)
-    tl.store(out_ptrs, accumulator, mask=out_mask)
 
 
-def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Tensor) -> torch.Tensor:
+def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Tensor, kernel) -> torch.Tensor:
     assert x.dtype == torch.float16
     assert w1.dtype == w3.dtype == rms_w.dtype
     assert w1.dtype in [torch.int8, torch.float16]
@@ -225,7 +145,7 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
     x_reshape = x.reshape(M, K)
     out = torch.empty((M, N), dtype=x.dtype, device=x.device)
     grid = lambda META: (triton.cdiv(META["M"], META["BLOCK_SIZE_M"]) * triton.cdiv(META["N"], META["BLOCK_SIZE_N"]),)
-    tt_ff[grid](
+    kernel[grid](
         x_reshape, w1_t, w3_t, out, rms_w,
         M, N, K,
         *x_reshape.stride(),
@@ -233,11 +153,11 @@ def call_tt(x: torch.Tensor, w1: torch.Tensor, w3: torch.Tensor, rms_w: torch.Te
         *w3_t.stride(),
         *out.stride(),
         *rms_w.stride(),
-        USE_FP8=w1_t.dtype != torch.float16,
-        EPS=1e-6,
-        BLOCK_SIZE_M=64, BLOCK_SIZE_N=32, BLOCK_SIZE_K=32,
-        num_stages=5, num_warps=2,
-        GROUP_SIZE_M=8,
+        # USE_FP8=w1_t.dtype != torch.float16,
+        # EPS=1e-6,
+        # BLOCK_SIZE_M=64, BLOCK_SIZE_N=32, BLOCK_SIZE_K=32,
+        # num_stages=2, num_warps=2,
+        # GROUP_SIZE_M=8,
     )
     out = out.view(batch, seq_len, -1)
     return out
@@ -308,7 +228,11 @@ if __name__ == '__main__':
     @fgk_autotune(
         configs=[
 		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':16, 'BLOCK_SIZE_N': 16, 'BLOCK_SIZE_K': 64, }, num_stages=2, num_warps=4),
-		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5, num_warps=2),
+		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=2, num_warps=2),
+		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 16, 'GROUP_SIZE_M': 8}, num_stages=2, num_warps=2),
+
+		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=2, num_warps=2),
+		# triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=5, num_warps=2),
 
     ],
         key=['M', 'N', 'K'],
@@ -356,16 +280,16 @@ if __name__ == '__main__':
         acc1 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
         acc2 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
-        rms_w_ptrs = rms_w_ptr + tl.arange(0, BLOCK_SIZE_K)[None, :] * stride_rms_w
-        a_sum = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_K), dtype=tl.float32)
+        # rms_w_ptrs = rms_w_ptr + tl.arange(0, BLOCK_SIZE_K)[None, :] * stride_rms_w
+        # a_sum = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_K), dtype=tl.float32)
         for _ in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
             a = tl.load(a_ptrs)
-            a_sum += tl.math.pow(a.to(tl.float32), 2)
-            rms_w = tl.load(rms_w_ptrs)
-            if USE_FP8:
-                rms_w = rms_w.to(tl.float8e5, bitcast=True)
-                rms_w = rms_w.to(tl.float16)
-            a = a * rms_w
+            # a_sum += tl.math.pow(a.to(tl.float32), 2)
+            # rms_w = tl.load(rms_w_ptrs)
+            # if USE_FP8:
+            #     rms_w = rms_w.to(tl.float8e5, bitcast=True)
+            #     rms_w = rms_w.to(tl.float16)
+            # a = a * rms_w
             b = tl.load(w1_ptrs)
             if USE_FP8:
                 b = b.to(tl.float8e5, bitcast=True)
@@ -383,13 +307,102 @@ if __name__ == '__main__':
             w1_ptrs += BLOCK_SIZE_K * stride_w1k
             w3_ptrs += BLOCK_SIZE_K * stride_w3k
 
-            rms_w_ptrs += BLOCK_SIZE_K * stride_rms_w
+            # rms_w_ptrs += BLOCK_SIZE_K * stride_rms_w
 
-        a_mean = tl.sum(a_sum, axis=1) / K + EPS
-        a_norm = tl.math.rsqrt(a_mean)
-        acc1 = acc1 * a_norm[:, None]
-        acc2 = acc2 * a_norm[:, None]
+        # a_mean = tl.sum(a_sum, axis=1) / K + EPS
+        # a_norm = tl.math.rsqrt(a_mean)
+        # acc1 = acc1 * a_norm[:, None]
+        # acc2 = acc2 * a_norm[:, None]
         accumulator = (acc1 * tl.sigmoid(acc1)) * acc2
+        accumulator = accumulator.to(tl.float16)
+
+        offs_outm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+        offs_outn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+        out_ptrs = out_ptr + (stride_outm * offs_outm[:, None] + stride_outn * offs_outn[None, :])
+        out_mask = (offs_outm[:, None] < M) & (offs_outn[None, :] < N)
+        tl.store(out_ptrs, accumulator, mask=out_mask)
+
+
+    @triton_autotune_with_cache(
+        configs=[
+		triton.Config({'USE_FP8': False, 'EPS': 1e-6, 'BLOCK_SIZE_M':64, 'BLOCK_SIZE_N': 32, 'BLOCK_SIZE_K': 32, 'GROUP_SIZE_M': 8}, num_stages=2, num_warps=2),
+
+    ],
+        key=['M', 'N', 'K'],
+        drl_config=drl_config,
+    )
+    @triton.jit
+    def tt_ff(
+        a_ptr, w1_ptr, w3_ptr, out_ptr, rms_w_ptr,
+        M, N, K,
+        stride_am, stride_ak,
+        stride_w1k, stride_w1n,
+        stride_w3k, stride_w3n,
+        stride_outm, stride_outn,
+        stride_rms_w,
+        USE_FP8: tl.constexpr,
+        EPS: tl.constexpr,
+        BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+        GROUP_SIZE_M: tl.constexpr,
+    ):
+        """
+        w1 and w3 are weights (linear layers)
+        F.silu(w1(x)) * w3(x)
+        """
+        pid = tl.program_id(axis=0)
+        num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
+        num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+        num_pid_in_group = GROUP_SIZE_M * num_pid_n
+        group_id = pid // num_pid_in_group
+        first_pid_m = group_id * GROUP_SIZE_M
+        group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+        pid_m = first_pid_m + (pid % group_size_m)
+        pid_n = (pid % num_pid_in_group) // group_size_m
+
+        offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
+        offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
+        offs_k = tl.arange(0, BLOCK_SIZE_K)
+        a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)
+        w1_ptrs = w1_ptr + (offs_k[:, None] * stride_w1k + offs_bn[None, :] * stride_w1n)
+        w3_ptrs = w3_ptr + (offs_k[:, None] * stride_w3k + offs_bn[None, :] * stride_w3n)
+        acc1 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+        acc2 = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+
+        # rms_w_ptrs = rms_w_ptr + tl.arange(0, BLOCK_SIZE_K)[None, :] * stride_rms_w
+        # a_sum = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_K), dtype=tl.float32)
+        for _ in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
+            a = tl.load(a_ptrs)
+            # a_sum += tl.math.pow(a.to(tl.float32), 2)
+            # rms_w = tl.load(rms_w_ptrs)
+            # if USE_FP8:
+            #     rms_w = rms_w.to(tl.float8e5, bitcast=True)
+            #     rms_w = rms_w.to(tl.float16)
+            # a = a * rms_w
+            b = tl.load(w1_ptrs)
+            if USE_FP8:
+                b = b.to(tl.float8e5, bitcast=True)
+                b = b.to(tl.float32)
+                b = b.to(tl.float16)
+            acc1 += tl.dot(a, b)
+            c = tl.load(w3_ptrs)
+            if USE_FP8:
+                c = c.to(tl.float8e5, bitcast=True)
+                c = c.to(tl.float32)
+                c = c.to(tl.float16)
+            acc2 += tl.dot(a, c)
+
+            a_ptrs += BLOCK_SIZE_K * stride_ak
+            w1_ptrs += BLOCK_SIZE_K * stride_w1k
+            w3_ptrs += BLOCK_SIZE_K * stride_w3k
+
+            # rms_w_ptrs += BLOCK_SIZE_K * stride_rms_w
+
+        # a_mean = tl.sum(a_sum, axis=1) / K + EPS
+        # a_norm = tl.math.rsqrt(a_mean)
+        # acc1 = acc1 * a_norm[:, None]
+        # acc2 = acc2 * a_norm[:, None]
+        accumulator = (acc1 * tl.sigmoid(acc1)) * acc2
+        accumulator = accumulator.to(tl.float16)
 
         offs_outm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
         offs_outn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
@@ -399,13 +412,11 @@ if __name__ == '__main__':
 
 
 
-
-
     # invoke
     call(x, w1_w, w3_w, rms_w, cuasmrl_kernel, load_dir)
 
     if drl_config.tt:
-        output_triton = call_tt(x=x, w1=w1_w, w3=w3_w, rms_w=rms_w)
+        output_triton = call_tt(x=x, w1=w1_w, w3=w3_w, rms_w=rms_w, kernel=tt_ff)
 
 
     if bool(drl_config.bench):
