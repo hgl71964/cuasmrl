@@ -11,7 +11,7 @@ for workload in "${workloads[@]}"; do
         echo
         echo "workload ${workload}; "
         echo
-        python3 benchmarks/03-matrix-multiplication.py \
+        python3 benchmarks/ff.py \
                 -m 512 \
                 -n 512 \
                 -k $workload 
