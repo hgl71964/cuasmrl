@@ -476,8 +476,8 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                # ms = triton.testing.do_bench(fn, warmup=100, rep=100)
-                ms = do_bench(fn, 100, 100)
+                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                # ms = do_bench(fn, 100, 100)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
@@ -536,8 +536,8 @@ class MutationEngine:
         )
         if assemble_ok:
             try:
-                # ms = triton.testing.do_bench(fn, warmup=100, rep=100)
-                ms = do_bench(fn, 100, 100)
+                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                # ms = do_bench(fn, 100, 100)
             except RuntimeError as run_err:
                 # likely a cuda error
                 logger.error(f'CUDA? Runtime Err: {run_err}')
@@ -596,8 +596,8 @@ class MutationEngine:
             try:
                 # warmup = self.config['warmup']
                 # rep = self.config['rep']
-                # ms = triton.testing.do_bench(fn, warmup=warmup, rep=rep)
-                ms = do_bench(fn, 100, 100)
+                ms = triton.testing.do_bench(fn, warmup=100, rep=100)
+                # ms = do_bench(fn, 100, 100)
             except RuntimeError as run_err:
                 # likely a cuda error
                 print(f'CUDA? Runtime Err: {run_err}')
