@@ -14,7 +14,7 @@ from CuAsm.CubinFile import CubinFile
 
 # mutation
 from cuasmrl.backend import make_env, MutationEngine
-from cuasmrl.ppo import env_loop
+from cuasmrl.ppo import env_loop, inference
 from cuasmrl.utils.logger import get_logger
 from cuasmrl.utils.record import save_data, read_data
 from cuasmrl.verify import test_via_cubin, gen_test_samples
@@ -95,4 +95,7 @@ def run_drl(
     )()
 
     # ===== run =====
-    env_loop(env, config)
+    if config.train == 1:
+        env_loop(env, config)
+    else:
+        inference(env, config)

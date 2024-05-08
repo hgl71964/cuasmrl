@@ -486,63 +486,121 @@ def env_loop(env, config):
 
 
 def inference(env, config):
-    # TODO
+    save_path = os.path.join(config.default_out_path, config.save_dir)
     device = torch.device(
-        "cuda" if torch.cuda.is_available() and bool(config.gpu) else "cpu")
-    logger.info(f"device: {device}")
-    # ===== env =====
-    state, _ = env.reset(seed=config.seed)
+        "cuda" if torch.cuda.is_available() and config.gpu == 1 else "cpu")
+    logger.info(f"[INFERENCE] WorkDir: {save_path}; Device: {device}")
 
-    # ===== agent =====
-    assert config.weights_path is not None, "weights_path must be set"
-    agent_id = config.agent_id if config.agent_id is not None else "agent-final"
-    fn = os.path.join(f"{config.default_out_path}/runs/", config.weights_path,
-                      f"{agent_id}.pt")
-    agent = PPO()
-    agent_state_dict = torch.load(fn, map_location=device)
-    agent.load_state_dict(agent_state_dict)
-    agent.to(device)
+    profile = False
+    if os.getenv("SIP_PROFILE", "0") == "1":
+        profile = True
 
-    next_obs = pyg.data.Batch.from_data_list([i[0] for i in state]).to(device)
-    invalid_rule_mask = torch.cat([i[2] for i in state]).reshape(
-        (env.num_env, -1)).to(device)
+    # ===== agent & opt =====
+    agent = PPO(env.observation_space, env.action_space).to(device)
 
-    # ==== rollouts ====
-    cnt = 0
-    t1 = time.perf_counter()
-    inf_time = 0
-    while True:
-        cnt += 1
+    # load the latest ckpt
+    ckpt_files = [f for f in os.listdir(save_path) if f.endswith('.pt')]
+    sorted_ckpt_files = sorted(
+        ckpt_files,
+        key=lambda x: int(x.strip('.pt').split('_')[-1]),
+        reverse=True)
+    latest_5_ckpts = sorted_ckpt_files[:5]
+
+    latest_ckpt = None
+    max_iteration = -1
+    for file in latest_5_ckpts:
+        iteration_num = int(file.strip('.pt').split('_')[-1])
+        if iteration_num > max_iteration:
+            max_iteration = iteration_num
+            latest_ckpt = file
+
+    if latest_ckpt is None:
+        raise RuntimeError(f'cannot find ckpt at {save_path}')
+    else:
+        latest_ckpt_path = os.path.join(save_path, latest_ckpt)
+        ckpt = torch.load(latest_ckpt_path)
+        agent.load_state_dict(ckpt['model_state_dict'])
+        start_iteration = ckpt['iteration'] + 1
+        global_step = ckpt['global_step']
+        best_reward = ckpt['best_reward']
+
+    logger.info(f'[INFERENCE] from iteration {start_iteration}')
+
+    # TRY NOT TO MODIFY: start the game
+    next_obs, info = env.reset(seed=config.seed)
+    next_obs = torch.Tensor(next_obs).to(device)
+    next_done = torch.zeros(config.num_env).to(device)
+
+    for step in range(0, config.num_steps):
+        # append 1 to indicate noop
+        mask = torch.tensor(info['masks'], dtype=torch.int32).flatten()
+        # mask = torch.cat([mask, torch.tensor([1], dtype=torch.int32)])
+        mask = torch.cat([mask, torch.tensor([0], dtype=torch.int32)])
+        if profile:
+            logger.info(f'effective dim: {mask.sum()}')
+
+        # ALGO LOGIC: action logic
         with torch.no_grad():
-            _t1 = time.perf_counter()
-            action, _, _, _ = agent.get_action_and_value(
+            action, logprob, _, value = agent.get_action_and_value(
                 next_obs,
-                invalid_rule_mask=invalid_rule_mask,
+                mask,
             )
-            _t2 = time.perf_counter()
-        inf_time += _t2 - _t1
 
         # TRY NOT TO MODIFY: execute the game and log data.
-        # print("a", action)
-        # a = [tuple(i) for i in action.cpu()]
-        next_obs, _, terminated, truncated, _ = env.step(action.cpu().numpy())
-        done = np.logical_or(terminated, truncated)
+        np_action = action.cpu().numpy()
+        next_obs, reward, terminations, truncations, info = env.step(np_action)
 
-        if done.all():
+        # resolve env transition
+        a = np_action.flatten()[0]
+        index, direction = a // 2, a % 2
+        lineno = env.unwrapped.sample.candidates[index]
+
+        logger.info(
+            f'[INFERENCE]: {step=}; {reward=}; {lineno=}; {direction=}')
+
+        if direction == 0:
+            # it was pushed up
+            for i in range(5, 1, -1):
+                print(f'{env.unwrapped.sample.kernel_section[lineno-i]}')
+
+            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno]}')
+            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno-1]}')
+
+            for i in range(1, 5):
+                print(f'{env.unwrapped.sample.kernel_section[lineno+i]}')
+        else:
+            for i in range(5, 0, -1):
+                print(f'{env.unwrapped.sample.kernel_section[lineno-i]}')
+
+            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno+1]}')
+            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno]}')
+
+            for i in range(2, 5):
+                print(f'{env.unwrapped.sample.kernel_section[lineno+i]}')
+        print()
+        print()
+
+        next_done_np: bool = np.logical_or(terminations, truncations)
+        next_obs = torch.Tensor(next_obs).to(device)
+        next_done = torch.Tensor([next_done_np]).to(device)
+
+        # handle error
+        if info['status'] == Status.SEGFAULT:
+            # subsequent call will be error;
+            raise RuntimeError('seg fault')
+        elif info['status'] == Status.TESTFAIL or next_done_np:
+            # log
+            if 'episode' in info:
+                logger.info(
+                    f"global_step={global_step}, episodic_return={info['episode']['r']}, best_reward {best_reward:.2f}"
+                )
+
+            # in SyncVectorEnv, the env is automatically reset if done
+            # we try to do the same here
+            # next_obs, info = env.reset(seed=config.seed)
+            # next_obs = torch.Tensor(next_obs).to(device)
+            # next_done = torch.zeros(config.num_env).to(device)
             break
 
-        invalid_rule_mask = torch.cat([i[2] for i in next_obs]).reshape(
-            (env.num_env, -1)).to(device)
-
-        next_obs = pyg.data.Batch.from_data_list([i[0] for i in next_obs
-                                                  ]).to(device)
-
-        # logger.info(f"iter {cnt}; reward: {reward}")
-
-    t2 = time.perf_counter()
-    # print(terminated, truncated)
-    return {
-        "iter": cnt,
-        "opt_time": t2 - t1,
-        "inf_time": inf_time,
-    }
+    # ===== STOP =====
+    env.close()
