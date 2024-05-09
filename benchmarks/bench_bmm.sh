@@ -2,7 +2,6 @@
 
 # config
 Bs=(
-        1
         2
         4
      )
@@ -19,11 +18,7 @@ for b in "${Bs[@]}"; do
                 echo
                 echo "workload ${b}; ${k}"
                 echo
-                python3 benchmarks/batch_matmul.py \
-                        -m 512 \
-                        -n 512 \
-                        -b $b \ 
-                        -k $k
+                python3 benchmarks/batch_matmul.py -b $b -k $k
                 sleep 3
         done
 done

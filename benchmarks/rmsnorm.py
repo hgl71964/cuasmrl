@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
     @fgk_autotune(
         configs=[
-		triton.Config({'N_SIZE': K, 'eps': 1e-6, 'BLOCK_N_SIZE':32}, num_stages=4, num_warps=4),
+		triton.Config({'N_SIZE': K, 'eps': 1e-6, 'BLOCK_N_SIZE':32}, num_stages=2, num_warps=4),
 
     ],
         key=['N_SIZE'],
