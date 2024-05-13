@@ -166,7 +166,8 @@ def call_tt(x, rms_w, eps=1e-6):
                                 *x.stride(),
                                 *rms_w.stride(),
                                 *out.stride(),
-                                N_SIZE=K, eps=eps, BLOCK_N_SIZE=32,
+                                N_SIZE=K, eps=1e-6, BLOCK_N_SIZE=32,
+                                num_stages=2, num_warps=4,
                                 )
     return out
 
