@@ -78,7 +78,7 @@ def parse_args() -> Config:
     parser.add_argument('--tt', default=False, action=argparse.BooleanOptionalAction)
 
     parser.add_argument("--wl", type=int, default=-1)
-    parser.add_argument("-b", type=int, default=32)
+    parser.add_argument("-b", type=int, default=1)
 
     parser.add_argument("-t", "--train", type=int, dest="train", default=1)
     parser.add_argument("-l", "--log", type=int, dest="log", default=1)
@@ -933,18 +933,18 @@ def main():
     flops = 2.0 * BATCH * OUT_H * OUT_W * IN_C * KERNEL_H * KERNEL_W * KERNEL_N
 
     drl_config.total_flops = flops
-    drl_config.save_dir = f'{GPU}/conv/{wl}'
+    drl_config.save_dir = f'{GPU}/conv/{BATCH}_{wl}'
     if drl_config.load is None:
         load_dir = None
     elif drl_config.load == "auto":
-        load_dir = f'data/{GPU}/conv/{wl}'
+        load_dir = f'data/{GPU}/conv/{BATCH}_{wl}'
     else:
         load_dir = drl_config.load
 
 
     @fgk_autotune(
         configs=[
-            triton.Config({'ACC_TYPE': tl.float32, 'CONV1X1_NHWC': True, 'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 64}, num_stages=4, num_warps=4),
+            triton.Config({'ACC_TYPE': tl.float32, 'CONV1X1_NHWC': True, 'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 64}, num_stages=2, num_warps=4),
     ],
         key=['BLOCK_M'],
         ret_ptr=2,
@@ -1102,7 +1102,7 @@ def main():
 
     @fgk_autotune(
         configs=[
-            triton.Config({'ACC_TYPE': tl.float32, 'CONV1X1_NHWC': True, 'BLOCK_M': 256, 'BLOCK_N': 32, 'BLOCK_K': 64}, num_stages=4, num_warps=4),
+            triton.Config({'ACC_TYPE': tl.float32, 'CONV1X1_NHWC': True, 'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 32}, num_stages=5, num_warps=2),
     ],
         key=['BLOCK_M'],
         ret_ptr=2,
@@ -1246,7 +1246,7 @@ def main():
         tl.store(y_ptrs, acc, mask=mask_y)
 
 
-    tri_out = forward(
+    forward(
         _cuasmrl_k1,
         _cuasmrl_k2,
         x,
@@ -1263,7 +1263,7 @@ def main():
 
 
     if drl_config.tt:
-        tri_out = forward_tt(
+        forward_tt(
             _kernel_delta_x,
             _kernel_delta_x_hwc,
             x,

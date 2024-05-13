@@ -252,7 +252,7 @@ if __name__ == '__main__':
             out_off = pid_batch * stride_out_batch + pid_m * stride_out_m + offs_n * stride_out_k
             tl.store(output_ptr + out_off, out, mask=x_ptr_mask)
 
-    # call(_cuasmrl, load_dir, embeddings_load, rms_weights)
+    call(_cuasmrl, load_dir, embeddings_load, rms_weights)
 
     if drl_config.tt:
         out_rms_triton = call_tt(x=embeddings_load, rms_w=rms_weights)
