@@ -550,36 +550,6 @@ def inference(env, config):
         np_action = action.cpu().numpy()
         next_obs, reward, terminations, truncations, info = env.step(np_action)
 
-        # resolve env transition
-        a = np_action.flatten()[0]
-        index, direction = a // 2, a % 2
-        lineno = env.unwrapped.sample.candidates[index]
-
-        logger.info(
-            f'[INFERENCE]: {step=}; {reward=}; {lineno=}; {direction=}')
-
-        if direction == 0:
-            # it was pushed up
-            for i in range(5, 1, -1):
-                print(f'{env.unwrapped.sample.kernel_section[lineno-i]}')
-
-            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno]}')
-            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno-1]}')
-
-            for i in range(1, 5):
-                print(f'{env.unwrapped.sample.kernel_section[lineno+i]}')
-        else:
-            for i in range(5, 0, -1):
-                print(f'{env.unwrapped.sample.kernel_section[lineno-i]}')
-
-            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno+1]}')
-            logger.warning(f'{env.unwrapped.sample.kernel_section[lineno]}')
-
-            for i in range(2, 5):
-                print(f'{env.unwrapped.sample.kernel_section[lineno+i]}')
-        print()
-        print()
-
         next_done_np: bool = np.logical_or(terminations, truncations)
         next_obs = torch.Tensor(next_obs).to(device)
         next_done = torch.Tensor([next_done_np]).to(device)

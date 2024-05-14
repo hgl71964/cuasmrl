@@ -35,12 +35,14 @@ def make_env(
     eng,
     config,
 ):
+    inference = config.train != 1
 
     def thunk():
         env = gym.make(env_id,
                        eng=eng,
                        n_tests=config.n_tests,
-                       verbose=bool(config.verbose))
+                       verbose=bool(config.verbose),
+                       inference=inference)
 
         # utility wrapper
         if config.horizon is not None:
@@ -59,7 +61,7 @@ def make_env(
 
 class Env(gym.Env):
 
-    def __init__(self, eng, n_tests, verbose):
+    def __init__(self, eng, n_tests, verbose, inference):
         super().__init__()
         self.eng = eng
         self.n_tests = n_tests
@@ -89,6 +91,8 @@ class Env(gym.Env):
             high=max(16.0, len(mem_loc)),  # max stall count 16
             shape=(1, total, n_feat),
             dtype=np.float32)
+
+        self.inference = inference
 
     def reset(self, seed=None, options=None):
         self.sample = Sample(self.eng.kernel_section, self.eng)
@@ -201,6 +205,30 @@ class Env(gym.Env):
             # valid
             info['status'] = Status.OK
             reward = (perf - self.last_perf) / self.init_perf * 100
+
+        # trace
+        if self.inference:
+            lineno = self.sample.candidates[index]
+            logger.info(f'[INFERENCE]: {reward=}; {lineno=}; {direction=}')
+            if direction == 0:
+                # it was pushed up
+                for i in range(5, 1, -1):
+                    print(f'{self.sample.kernel_section[lineno-i]}')
+
+                logger.critical(f'{self.sample.kernel_section[lineno]}')
+                logger.critical(f'{self.sample.kernel_section[lineno-1]}')
+
+                for i in range(1, 5):
+                    print(f'{self.sample.kernel_section[lineno+i]}')
+            else:
+                for i in range(5, 0, -1):
+                    print(f'{self.sample.kernel_section[lineno-i]}')
+
+                logger.critical(f'{self.sample.kernel_section[lineno+1]}')
+                logger.critical(f'{self.sample.kernel_section[lineno]}')
+
+                for i in range(2, 5):
+                    print(f'{self.sample.kernel_section[lineno+i]}')
 
         # update
         state, masks = self._build_state()

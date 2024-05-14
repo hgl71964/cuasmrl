@@ -18,7 +18,7 @@ Zs=(
      )
 
 Hs=(
-        16
+        # 16
         # 64
         4
      )
@@ -39,7 +39,7 @@ for Z in "${Zs[@]}"; do
                                 python benchmarks/06-fused-attention.py \
                                         --Z $Z \
                                         --H $H \
-                                        --D_HEAD $HEAD \
+                                        --dh $HEAD \
                                         --wl $workload
                                         # --load auto \
                                         # --bench 1
