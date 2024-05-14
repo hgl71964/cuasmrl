@@ -34,8 +34,8 @@ def make_env(
     env_id,
     eng,
     config,
+    inference,
 ):
-    inference = config.train != 1
 
     def thunk():
         env = gym.make(env_id,

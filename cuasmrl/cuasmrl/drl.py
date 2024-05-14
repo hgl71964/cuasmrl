@@ -53,6 +53,11 @@ def run_drl(
         time.sleep(1)
         cf = CubinFile(temp_file.name)
 
+    if config.train == 1:
+        is_inference = False
+    else:
+        is_inference = True
+
     # ===== backend env =====
     eng = MutationEngine(
         bin,
@@ -92,10 +97,11 @@ def run_drl(
         config.env_id,
         eng,
         config,
+        is_inference,
     )()
 
     # ===== run =====
-    if config.train == 1:
-        env_loop(env, config)
-    else:
+    if is_inference:
         inference(env, config)
+    else:
+        env_loop(env, config)
