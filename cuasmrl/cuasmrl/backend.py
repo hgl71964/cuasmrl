@@ -448,6 +448,9 @@ class MutationEngine:
                 dest = dest.split('.')[0]
                 dest = dest.split('+')[0]
 
+        # a hack for internal label
+        if ctrl_code.startswith('$__'):
+            ctrl_code = None
         return ctrl_code, comment, predicate, opcode, dest, processed_src
 
     def decode_ctrl_code(self, ctrl_code: str):
